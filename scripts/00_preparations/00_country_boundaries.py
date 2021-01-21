@@ -24,20 +24,44 @@ import pandas as pd
 import shapely
 import numpy as np
 import json
+import logging
+import os
+
+current_file_name = os.path.basename(__file__).split('.')[0]
+SAF_directory = os.path.dirname(__file__)
+for i in range(2):
+    SAF_directory = os.path.dirname(SAF_directory)
+# Add a logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(process)d - %(levelname)s: %(message)s','%Y-%m-%d %H:%M:%S')
+file_handler1 = logging.FileHandler(os.path.join(SAF_directory,'logs',f'{current_file_name}_persistent.log'))
+file_handler1.setLevel(logging.INFO)
+file_handler1.setFormatter(formatter)
+file_handler2 = logging.FileHandler(os.path.join(SAF_directory,'logs',f'{current_file_name}.log'),mode='w')
+file_handler2.setLevel(logging.INFO)
+file_handler2.setFormatter(formatter)
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(logging.ERROR)
+stream_handler.setFormatter(formatter)
+logger.addHandler(file_handler1)
+logger.addHandler(file_handler2)
+logger.addHandler(stream_handler)
+logger.propogate = False
 
 # Data obtained from here: https://hub.arcgis.com/datasets/a21fdb46d23e4ef896f31475217cbb08_1?geometry=96.559%2C-89.221%2C-104.535%2C86.867
-world_raw = gpd.read_file('./data/Countries_WGS84/Countries_WGS84.shp')
+world_raw = gpd.read_file(os.path.join(SAF_directory,'data/Countries_WGS84/Countries_WGS84.shp'))
 world = world_raw.rename(columns={'CNTRY_NAME':'name'}).drop(columns='OBJECTID')
 world.name = world.name.apply(lambda x: x.replace(' ','_'))
 
 # Import EU + EFTA country names
-eu_efta = pd.read_csv('./data/EU_EFTA_Countries.csv',index_col=0)
+eu_efta = pd.read_csv(os.path.join(SAF_directory,'data/EU_EFTA_Countries.csv'),index_col=0)
 EU_EFTA = list(eu_efta.country.unique())
 europe_unfiltered = world.loc[world.name.isin(eu_efta.country.unique())].copy()
 europe_unfiltered.reset_index(drop=True,inplace=True)
 
 # Check that all europe_unfiltered countries were properly extracted
-print(f'{len(eu_efta)} countries in the EU_EFTA dataset. {len(europe_unfiltered)} countries in the world DataFrame europe_unfiltered slice.')
+logger.info(f'{len(eu_efta)} countries in the EU_EFTA dataset. {len(europe_unfiltered)} countries in the world DataFrame europe_unfiltered slice.')
 assert len(eu_efta)==len(europe_unfiltered)
 
 # Remove excess geometries
@@ -78,11 +102,12 @@ for country in europe_unfiltered.name.unique():
         europe.loc[[country_idx],'geometry'] = geo_series.to_crs(crs=world.crs)
         # Verify that the new multipolygon put into the europe_unfiltered dataframe has the correct number of polygons
         assert len(europe.loc[europe.name==country,'geometry'].item()) == len(world.loc[world.name==country,'geometry'].item()) - removed_polygons[country]
+logger.info(f'Removed polygons: {removed_polygons}')
 
 europe.to_crs(crs=world.crs,inplace=True)
 
 # Save the result to a shapefile
-europe.to_file('./data/Countries_WGS84/Europe_WGS84.shp')
+europe.to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_WGS84.shp'))
 
 # PV and wind resources at every location within a country use the nearest wind/PV resource data point. These points are spaced according to the MERRA resolution. For some locations near the borders of countries, the nearest PV/wind data point will be outside the country's borders. Thus, in order to incorporate these points, a point inside the borders is found (where possible).
 # Generate country grids
@@ -199,20 +224,20 @@ for index,row in coast_grid.iterrows():
 coast.to_crs(crs=world.crs, inplace=True)
 
 # Save the points in a shapefile
-coast_grid.to_file('./data/Countries_WGS84/Coast_Evaluation_Grid.shp')
+coast_grid.to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Coast_Evaluation_Grid.shp'))
 
 europe_coast_points = get_coast_points(coast, europe_grid)
-europe_coast_points.to_file('./data/Countries_WGS84/Europe_Coast_Evaluation_Grid.shp')
+europe_coast_points.to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Coast_Evaluation_Grid.shp'))
 
-europe_grid.to_file('./data/Countries_WGS84/Europe_Evaluation_Grid.shp')
+europe_grid.to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Grid.shp'))
 
 europe_PV_points = europe_grid.copy()
 europe_PV_points['geometry'] = europe_PV_points.apply(lambda x: shapely.geometry.Point(x.PV_lon,x.PV_lat),axis=1)
-europe_PV_points.to_file('./data/Countries_WGS84/Europe_Evaluation_Points.shp')
+europe_PV_points.to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.shp'))
 
 coast_points = coast_grid.copy()
 coast_points['geometry'] = coast_points.apply(lambda x: shapely.geometry.Point(x.lon,x.lat),axis=1)
-coast_points.to_file('./data/Countries_WGS84/Coast_Evaluation_Points.shp')
+coast_points.to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Coast_Evaluation_Points.shp'))
 
 # Creates a copy of the europe_grid dataframe and reassigns the geometry column to a single MERRA point for each cell location instead of the cell shape
 europe_points = europe_grid.drop(columns='geometry')
@@ -238,8 +263,8 @@ for idx in coast_points.index:
 
 # Save the list of points to a JSON file
 # The points are saved as tuples: (lat,lon)
-with open('./data/Countries_WGS84/Europe_Evaluation_Points.json', 'w') as fp:
+with open(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.json'), 'w') as fp:
     json.dump(europe_points_dict, fp)
 
-with open('./data/Countries_WGS84/Coast_Evaluation_Points.json', 'w') as fp:
+with open(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Coast_Evaluation_Points.json'), 'w') as fp:
     json.dump(coast_points_dict, fp)

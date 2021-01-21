@@ -3,7 +3,9 @@
 testing/
 cache/
 logs/
-data/
+data/Countries_WGS84/processed/
+data/MERRA/
+data/PVGIS/
 .ipynb_checkpoints
 **/.ipynb_checkpoints
 __pycache__/
