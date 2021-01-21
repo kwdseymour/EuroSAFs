@@ -9,4 +9,4 @@ data/PVGIS/
 .ipynb_checkpoints
 **/.ipynb_checkpoints
 __pycache__/
-config
+scripts/config.json
