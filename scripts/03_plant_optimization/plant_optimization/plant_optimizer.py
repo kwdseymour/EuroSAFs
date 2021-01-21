@@ -24,6 +24,7 @@ from gurobipy import *
 import warnings
 import logging
 from .errors import *
+import os
 
 idx = pd.IndexSlice
 

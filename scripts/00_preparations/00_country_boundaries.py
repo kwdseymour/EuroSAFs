@@ -31,23 +31,12 @@ current_file_name = os.path.basename(__file__).split('.')[0]
 SAF_directory = os.path.dirname(__file__)
 for i in range(2):
     SAF_directory = os.path.dirname(SAF_directory)
+
+sys.path.append(os.path.join(SAF_directory,'scripts/03_plant_optimization'))
+from plant_optimization.utilities import create_logger
+
 # Add a logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(process)d - %(levelname)s: %(message)s','%Y-%m-%d %H:%M:%S')
-file_handler1 = logging.FileHandler(os.path.join(SAF_directory,'logs',f'{current_file_name}_persistent.log'))
-file_handler1.setLevel(logging.INFO)
-file_handler1.setFormatter(formatter)
-file_handler2 = logging.FileHandler(os.path.join(SAF_directory,'logs',f'{current_file_name}.log'),mode='w')
-file_handler2.setLevel(logging.INFO)
-file_handler2.setFormatter(formatter)
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.ERROR)
-stream_handler.setFormatter(formatter)
-logger.addHandler(file_handler1)
-logger.addHandler(file_handler2)
-logger.addHandler(stream_handler)
-logger.propogate = False
+logger = create_logger(SAF_directory,__name__,__file__)
 
 # Data obtained from here: https://hub.arcgis.com/datasets/a21fdb46d23e4ef896f31475217cbb08_1?geometry=96.559%2C-89.221%2C-104.535%2C86.867
 world_raw = gpd.read_file(os.path.join(SAF_directory,'data/Countries_WGS84/Countries_WGS84.shp'))
