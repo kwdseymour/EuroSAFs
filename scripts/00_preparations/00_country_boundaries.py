@@ -53,7 +53,7 @@ logger.info(f'{len(eu_efta)} countries in the EU_EFTA dataset. {len(europe_unfil
 assert len(eu_efta)==len(europe_unfiltered)
 
 # Remove excess geometries
-# The following cell removes a geometry from a country if:  
+# The following removes a geometry from a country if:  
 # - The land area is less than 20 km2  
 #     OR  
 # - The distance to the biggest geometry ("mainland") is greater than 4 times the length of the given geometry (eliminates distant territories)
@@ -144,7 +144,7 @@ def get_coast_points(coast, europe_grid):
 
 coast = europe.copy()
 coast.to_crs('epsg:3035',inplace=True)
-coast['geometry'] = coast['geometry'].buffer(20000)
+coast['geometry'] = coast['geometry'].buffer(20000) # Does this correspond to 20km? The thesis report mentions 60km.
 
 land_mass = europe.copy()
 land_mass.to_crs('epsg:3035',inplace=True)

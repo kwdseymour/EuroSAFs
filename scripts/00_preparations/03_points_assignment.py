@@ -4,10 +4,10 @@ from statistics import mean
 from gurobipy import *
 
 def define_Europe_Coast_Evaluation_Points():
-    coast_points = gpd.read_file('./data/Countries_WGS84/Coast_Evaluation_Points.shp')
+    coast_points = gpd.read_file('./data/Countries_WGS84/processed/Coast_Evaluation_Points.shp')
 
-    eu_points = gpd.read_file('./data/Countries_WGS84/Europe_Evaluation_Points.shp').drop(['PV_lat', 'PV_lon'],axis=1)
-    eu_coast_points = gpd.read_file('./data/Countries_WGS84/Europe_Coast_Evaluation_Grid.shp').drop(['geometry', 'PV_lat', 'PV_lon'],axis=1)
+    eu_points = gpd.read_file('./data/Countries_WGS84/processed/Europe_Evaluation_Points.shp').drop(['PV_lat', 'PV_lon'],axis=1)
+    eu_coast_points = gpd.read_file('./data/Countries_WGS84/processed/Europe_Coast_Evaluation_Grid.shp').drop(['geometry', 'PV_lat', 'PV_lon'],axis=1)
     eu_coast_points = eu_coast_points.merge(eu_points)
 
     new_columns = {'name': [], 'lat': [], 'lon': [], 'next': [], 'weights': []}
@@ -51,12 +51,12 @@ def define_Europe_Coast_Evaluation_Points():
 
             eu_coast_points = eu_coast_points.drop(idx)
 
-    eu_coast_points.drop(['next', 'weights'], axis=1).to_file('./data/Countries_WGS84/Europe_Coast_Evaluation_Points.shp')
-    eu_coast_points.drop(['geometry'], axis=1).to_pickle('./data/Countries_WGS84/Europe_Coast_Evaluation_Points.pkl')
-    eu_coast_points.drop(['geometry'], axis=1).to_csv('./data/Countries_WGS84/Europe_Coast_Evaluation_Points.csv')
+    eu_coast_points.drop(['next', 'weights'], axis=1).to_file('./data/Countries_WGS84/processed/Europe_Coast_Evaluation_Points.shp')
+    eu_coast_points.drop(['geometry'], axis=1).to_pickle('./data/Countries_WGS84/processed/Europe_Coast_Evaluation_Points.pkl')
+    eu_coast_points.drop(['geometry'], axis=1).to_csv('./data/Countries_WGS84/processed/Europe_Coast_Evaluation_Points.csv')
 
 def assign_points():
-    eu_coast_points = pd.read_pickle('./data/Countries_WGS84/Europe_Coast_Evaluation_Points.pkl')
+    eu_coast_points = pd.read_pickle('./data/Countries_WGS84/processed/Europe_Coast_Evaluation_Points.pkl')
 
     new_column = {'name': [], 'lat': [], 'lon': [], 'node': [], 'weight': []}
 
@@ -110,8 +110,8 @@ def assign_points():
     new_frame = pd.DataFrame(new_column)
     eu_coast_points = eu_coast_points.merge(new_frame)
 
-    eu_coast_points.to_pickle('./data/Countries_WGS84/Europe_Coast_Evaluation_Points.pkl')
-    eu_coast_points.to_csv('./data/Countries_WGS84/Europe_Coast_Evaluation_Points.csv')
+    eu_coast_points.to_pickle('./data/Countries_WGS84/processed/Europe_Coast_Evaluation_Points.pkl')
+    eu_coast_points.to_csv('./data/Countries_WGS84/processed/Europe_Coast_Evaluation_Points.csv')
 
 define_Europe_Coast_Evaluation_Points()
 assign_points()
