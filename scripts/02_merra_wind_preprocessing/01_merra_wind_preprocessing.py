@@ -189,7 +189,7 @@ def preprocess_df(df_wind,country):
     df_wind['hellmann'] = (np.log(df_wind.v_50m) - np.log(df_wind.v_10m)) / (np.log(50) - np.log(10 + df_wind.DISPH)) # (Mosshammer, 2016)
     df_wind.drop(columns=['U10M','V10M','U50M','V50M'],inplace=True)
 
-# Generate wind turbine objects
+## Generate wind turbine objects
 turbines = {}
 turbine_classes = {}
 turbine_cost_objects = {}
@@ -203,7 +203,6 @@ on_shore_names = list(on_off_shore.loc[on_off_shore.on_shore==1,'turbine_type'])
 off_shore_names = list(on_off_shore.loc[on_off_shore.off_shore==1,'turbine_type'])
 on_shore_types = [x for x in all_types if x in on_shore_names]
 off_shore_types = [x for x in all_types if x in off_shore_names]
-print([x for x in on_off_shore.turbine_type])
 missing_shore_designation = [x for x in all_types if x not in on_off_shore.turbine_type]
 if len(missing_shore_designation) > 0:
     logger.error(f'The following witn turbine types were not assigned on- or off-shore designationsin the on_off_shore.csv file. They are therefore not being used: {missing_shore_designation}')
