@@ -3,6 +3,7 @@
 testing/
 cache/
 logs/
+results/
 data/Countries_WGS84/processed/
 data/MERRA/
 data/PVGIS/
