@@ -27,15 +27,14 @@ import json
 import logging
 import os
 
-current_file_name = os.path.basename(__file__).split('.')[0]
+# Get EuroSAFs parent directory 
 SAF_directory = os.path.dirname(__file__)
 for i in range(2):
     SAF_directory = os.path.dirname(SAF_directory)
 
+# Add a logger
 sys.path.append(os.path.join(SAF_directory,'scripts/03_plant_optimization'))
 from plant_optimization.utilities import create_logger
-
-# Add a logger
 logger = create_logger(SAF_directory,__name__,__file__)
 
 # Data obtained from here: https://hub.arcgis.com/datasets/a21fdb46d23e4ef896f31475217cbb08_1?geometry=96.559%2C-89.221%2C-104.535%2C86.867

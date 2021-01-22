@@ -21,16 +21,17 @@ import time
 from calendar import monthrange
 import json
 
-current_file_name = os.path.basename(__file__).split('.')[0]
+# Get EuroSAFs parent directory 
 SAF_directory = os.path.dirname(__file__)
 for i in range(2):
     SAF_directory = os.path.dirname(SAF_directory)
+# Read configuration file. The MERRA username is extracted from here.
 with open(os.path.join(SAF_directory,'scripts/config.json')) as config_file:
     config = json.load(config_file)
-sys.path.append(os.path.join(SAF_directory,'scripts/03_plant_optimization'))
-from plant_optimization.utilities import create_logger
 
 # Add a logger
+sys.path.append(os.path.join(SAF_directory,'scripts/03_plant_optimization'))
+from plant_optimization.utilities import create_logger
 logger = create_logger(SAF_directory,__name__,__file__)
 
 # Download raw data
