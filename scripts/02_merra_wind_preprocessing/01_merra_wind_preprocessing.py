@@ -190,27 +190,24 @@ def preprocess_df(df_wind,country):
     df_wind.drop(columns=['U10M','V10M','U50M','V50M'],inplace=True)
 
 ## Generate wind turbine objects
-turbines = {}
-turbine_classes = {}
-turbine_cost_objects = {}
-specs_path = os.path.join(SAF_directory,'data','plant_assumptions.xlsx')
-component_specs = pd.read_excel(specs_path,sheet_name='data',index_col=0)
+turbines = {'onshore':{},'offshore':{}}
+turbine_classes = {'onshore':{},'offshore':{}}
+turbine_cost_objects = {'onshore':{},'offshore':{}}
+component_specs = pd.read_excel(os.path.join(SAF_directory,'data','plant_assumptions.xlsx'),sheet_name='data',index_col=0)
 # turbine_specs = wpl.wind_turbine.load_turbine_data_from_oedb()
 turbine_specs = pd.read_csv(os.path.join(os.path.dirname(wpl.__file__),'oedb','turbine_data.csv'))
 all_types = list(wpl.wind_turbine.get_turbine_types('local',filter_=True,print_out=False)['turbine_type'].unique())
-on_off_shore = pd.read_csv(os.path.join(os.path.dirname(sys.argv[0]),'on_off_shore.csv')) # Reads a csv that indicates whether each turbine model have on- and off-shore variants
-on_shore_names = list(on_off_shore.loc[on_off_shore.on_shore==1,'turbine_type'])
-off_shore_names = list(on_off_shore.loc[on_off_shore.off_shore==1,'turbine_type'])
-on_shore_types = [x for x in all_types if x in on_shore_names]
-off_shore_types = [x for x in all_types if x in off_shore_names]
+on_off_shore = pd.read_csv(os.path.join(os.path.dirname(sys.argv[0]),'on_off_shore.csv')) # Reads a csv that indicates whether each turbine model has on- and off-shore variants
+onshore_types = [x for x in all_types if x in on_off_shore.loc[on_off_shore.onshore==1,'turbine_type']] # List of on-shore turbine models
+offshore_types = [x for x in all_types if x in on_off_shore.loc[on_off_shore.offshore==1,'turbine_type']] # List of off-shore turbine models
 missing_shore_designation = [x for x in all_types if x not in on_off_shore.turbine_type]
 if len(missing_shore_designation) > 0:
-    logger.error(f'The following witn turbine types were not assigned on- or off-shore designationsin the on_off_shore.csv file. They are therefore not being used: {missing_shore_designation}')
+    logger.error(f'The following wind turbine types were not assigned on- or off-shore designationsin the on_off_shore.csv file. They are therefore not being used: {missing_shore_designation}')
 specific_capacity_classes = {0.2:'lo',0.3:'mid',0.47:'hi'} # 2018 JRC report wind turbing specific capacity classes used for determining costs
 rep_specific_capacities = [0.2,0.3,0.47] # 2018 JRC report wind turbine class representative specific capacities
 rep_hub_heights = {0.2:200, 0.3:100, 0.47:50} # 2018 JRC report wind turbine class hub heights for each of the three representative specific capacities
 loading_errors = {}
-for model in on_shore_types:
+for model in all_types:
     '''
     Select the hub that matches most closely to the closest wind turbine category in the 2018 JRC report:
      - Turbine specific capacity of 0.2 kW/m2 (low specific capacity) and at 200 m hub height (high hub height)
@@ -224,20 +221,26 @@ for model in on_shore_types:
         rep_specific_capacity = min(rep_specific_capacities, key=lambda x:abs(x-specific_capacity)) # Selects the JRC representative specific capacity closest to that of this turbine
         rep_hub_height = rep_hub_heights[rep_specific_capacity] # Selects the representative hub height for the JRC wind turbine class closets to this turbine's specific capacity
         hub_height = min(hub_height_list, key=lambda x:abs(x-rep_hub_height)) # [m] Selects the hub height for this model that is closest to the representative hub height found above
-        turbines[model] = wpl.wind_turbine.WindTurbine(turbine_type=model,hub_height=hub_height)
-        turbine_classes[model] = specific_capacity_classes[rep_specific_capacity]
-        turbine_cost_objects[model] = Component('wind',specs=component_specs,wind_class=specific_capacity_classes[rep_specific_capacity])
+        if model in onshore_types:
+            turbines['onshore'][model] = wpl.wind_turbine.WindTurbine(turbine_type=model,hub_height=hub_height)
+            turbine_classes['onshore'][model] = specific_capacity_classes[rep_specific_capacity]
+            turbine_cost_objects['onshore'][model] = Component('wind',specs=component_specs,wind_class=specific_capacity_classes[rep_specific_capacity])
+        if model in offshore_types: # Note that we are assuming ALL offshore wind turbines are medium-distance to shore, jacket base types
+            turbines['offshore'][model] = wpl.wind_turbine.WindTurbine(turbine_type=model,hub_height=hub_height)
+            turbine_classes['offshore'][model] = specific_capacity_classes[rep_specific_capacity]
+            turbine_cost_objects['offshore'][model] = Component('wind',specs=component_specs,wind_class='jacket') # Note that we are assuming ALL offshore wind turbines are medium-distance to shore, jacket base types
     except Exception as e:
         loading_errors[model] = e
 if len(loading_errors)>0:
     logger.info('There was a problem loading the following wind turbine models: {}'.format(str(loading_errors.keys())))
-logger.info('The following wind turbine models were properly loaded: {}'.format(str(turbines.keys())))
+logger.info('The following onshore wind turbine models were properly loaded: {}'.format(str(turbines['onshore'].keys())))
+logger.info('The following offshore wind turbine models were properly loaded: {}'.format(str(turbines['offshore'].keys())))
 
 turbine_spacing = 5 # meters of spacing per meter of rotor diameter [Bryer, 2012]
 models=[]
 specific_outputs=[]
 
-def assign_turbine_model(df,optimization_metric='lcoe'):
+def assign_turbine_model(df,optimization_metric='lcoe',offshore=False):
     '''Calculates hypothetical power output for each turbine model in "models" and returns the model with the most optimal optimization metric value.
     
     Optimization can be performed with any one the following "optimization_metrics":
@@ -245,12 +248,13 @@ def assign_turbine_model(df,optimization_metric='lcoe'):
     "flh": full load hours
     "density": the power production density measured in kWh per land area required for the turbine
     '''
+    shore_designation = 'offshore' if offshore else 'onshore'
     winner_model = ''
     winning_value = 0
-    for name,turbine in turbines.items():
+    for name,turbine in turbines[shore_designation].items():
         speed_at_hub = df.v_50m*(turbine.hub_height/50)**df.hellmann
         output = sum(wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value))/1e3 #kWh
-        cost_object = turbine_cost_objects[name]
+        cost_object = turbine_cost_objects[shore_designation][name]
         if optimization_metric.lower() == 'lcoe':
             metric = costs_NPV(capex=cost_object.on_CAPEX, opex=cost_object.on_OPEX,
                                 discount_rate=component_specs.at['discount_rate', 'value'], lifetime=cost_object.on_lifetime,
@@ -270,7 +274,7 @@ def assign_turbine_model(df,optimization_metric='lcoe'):
         logger.error(f'Problem assigning a turbine model {df}. Latest metric value {metric}.')
     return winner_model
         
-def compute_power_output(df):
+def compute_power_output(df,offshore_points=None):
     '''Calculates the hourly power output from the wind speed data using an optimal wind turbine.
 
     - The optimal wind turbine is derived from the "assign_turbine_model" function.
@@ -283,7 +287,11 @@ def compute_power_output(df):
     df['rated_power_MW'] = ''
     df['specific_capacity_class'] = ''
     for coords in df.index.droplevel(2).unique():
-        optimal_turbine = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric)
+        try:
+            offshore = coords in offshore_points
+        except TypeError:
+            offshore = False
+        optimal_turbine = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric,offshore=offshore)
         speed_at_hub = df.loc[coords].v_50m*(turbines[optimal_turbine].hub_height/50)**df.loc[coords].hellmann
         output = wpl.power_output.power_curve(speed_at_hub,turbines[optimal_turbine].power_curve.wind_speed,turbines[optimal_turbine].power_curve.value) # [Wh]
         df.loc[idx[coords],'kWh'] = list(output/1e3) # [kWh]
@@ -292,7 +300,7 @@ def compute_power_output(df):
         df.loc[idx[coords],'rotor_diameter'] = turbines[optimal_turbine].rotor_diameter # [m]
         df.loc[idx[coords],'specific_capacity_class'] = turbine_classes[optimal_turbine]
 
-def process_country(country, coast):
+def process_country(country):
     '''Extract files to DataFrame, preprocess dataframe, and compute power output for each country in the "countries" list'''
     # Create a script_name for caching the interim results: "01_merra_wind_preprocessing_<country>_<script_time>.csv"
     logger.info(f'{country} processing started...')
@@ -304,8 +312,11 @@ def process_country(country, coast):
     logger.info(f'Initial caching for {country}...')
     df_wind.to_csv(os.path.join(cache_path,cache_file_name))
     logger.info(f'Initial {country} cache saved')
+    # ADD SOME CODE HERE TO IDENTIFY POINTS THAT ARE OFFSHORE
+    logger.error(f'The points in {country} are not assigned an on/offshore designation. Thus, all points are assumed to be onshore.')
+    offshore_points = None
     # Calculate power output
-    compute_power_output(df_wind)
+    compute_power_output(df_wind,offshore_points=offshore_points)
     # Cache & save results
     logger.info(f'Saving results for {country}...')
     df_wind.to_csv(os.path.join(cache_path,cache_file_name))
@@ -313,20 +324,7 @@ def process_country(country, coast):
     df_wind.to_csv(os.path.join(results_path,f'{country}.csv'))
     logger.info(f'Results for {country} saved')
 
-    if coast == True:
-        if os.path.isdir('./data/MERRA/' + country + '/coast'):
-            print(country)
-        else:
-            pass
-            #df_wind = files_to_dataframe(country)
-            #preprocess_df(df_wind, country)
-            #df_wind.to_csv(os.path.join(cache_path, cache_file_name))
-            #compute_power_output(df_wind)
-            # df_wind.to_parquet(os.path.join(results_path,f'{country}.parquet.gzip'),compression='gzip')
-
-coast = True
-
 for country in countries:
-    process_country(country, coast)
+    process_country(country)
 
 logger.info('Script time: {:.2f} seconds.'.format(time.time()-sstime))
