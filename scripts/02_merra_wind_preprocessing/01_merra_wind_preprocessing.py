@@ -198,11 +198,11 @@ component_specs = pd.read_excel(os.path.join(SAF_directory,'data','plant_assumpt
 turbine_specs = pd.read_csv(os.path.join(os.path.dirname(wpl.__file__),'oedb','turbine_data.csv'))
 all_types = list(wpl.wind_turbine.get_turbine_types('local',filter_=True,print_out=False)['turbine_type'].unique())
 on_off_shore = pd.read_csv(os.path.join(os.path.dirname(sys.argv[0]),'on_off_shore.csv')) # Reads a csv that indicates whether each turbine model has on- and off-shore variants
-onshore_types = [x for x in all_types if x in on_off_shore.loc[on_off_shore.onshore==1,'turbine_type']] # List of on-shore turbine models
-offshore_types = [x for x in all_types if x in on_off_shore.loc[on_off_shore.offshore==1,'turbine_type']] # List of off-shore turbine models
-missing_shore_designation = [x for x in all_types if x not in on_off_shore.turbine_type]
+onshore_types = [x for x in all_types if x in list(on_off_shore.loc[on_off_shore.onshore==1,'turbine_type'])] # List of on-shore turbine models
+offshore_types = [x for x in all_types if x in list(on_off_shore.loc[on_off_shore.offshore==1,'turbine_type'])] # List of off-shore turbine models
+missing_shore_designation = [x for x in all_types if x not in on_off_shore.turbine_type.unique()]
 if len(missing_shore_designation) > 0:
-    logger.error(f'The following wind turbine types were not assigned on- or off-shore designationsin the on_off_shore.csv file. They are therefore not being used: {missing_shore_designation}')
+    logger.error(f'The following wind turbine types were not assigned on- or off-shore designations in the on_off_shore.csv file. They are therefore not being used: {missing_shore_designation}')
 specific_capacity_classes = {0.2:'lo',0.3:'mid',0.47:'hi'} # 2018 JRC report wind turbing specific capacity classes used for determining costs
 rep_specific_capacities = [0.2,0.3,0.47] # 2018 JRC report wind turbine class representative specific capacities
 rep_hub_heights = {0.2:200, 0.3:100, 0.47:50} # 2018 JRC report wind turbine class hub heights for each of the three representative specific capacities
@@ -240,7 +240,7 @@ turbine_spacing = 5 # meters of spacing per meter of rotor diameter [Bryer, 2012
 models=[]
 specific_outputs=[]
 
-def assign_turbine_model(df,optimization_metric='lcoe',offshore=False):
+def assign_turbine_model(df,optimization_metric='lcoe',shore_designation='onshore'):
     '''Calculates hypothetical power output for each turbine model in "models" and returns the model with the most optimal optimization metric value.
     
     Optimization can be performed with any one the following "optimization_metrics":
@@ -248,7 +248,6 @@ def assign_turbine_model(df,optimization_metric='lcoe',offshore=False):
     "flh": full load hours
     "density": the power production density measured in kWh per land area required for the turbine
     '''
-    shore_designation = 'offshore' if offshore else 'onshore'
     winner_model = ''
     winning_value = 0
     for name,turbine in turbines[shore_designation].items():
@@ -256,9 +255,9 @@ def assign_turbine_model(df,optimization_metric='lcoe',offshore=False):
         output = sum(wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value))/1e3 #kWh
         cost_object = turbine_cost_objects[shore_designation][name]
         if optimization_metric.lower() == 'lcoe':
-            metric = costs_NPV(capex=cost_object.on_CAPEX, opex=cost_object.on_OPEX,
-                                discount_rate=component_specs.at['discount_rate', 'value'], lifetime=cost_object.on_lifetime,
-                                capacity=turbine.nominal_power / 1e3) / np.sum([output/(1+component_specs.at['discount_rate', 'value'])**n for n in np.arange(cost_object.on_lifetime+1)])  # EUR/kWh
+            metric = costs_NPV(capex=cost_object.CAPEX, opex=cost_object.OPEX,
+                                discount_rate=component_specs.at['discount_rate', 'value'], lifetime=cost_object.lifetime,
+                                capacity=turbine.nominal_power / 1e3) / np.sum([output/(1+component_specs.at['discount_rate', 'value'])**n for n in np.arange(cost_object.lifetime+1)])  # EUR/kWh
         elif optimization_metric.lower() == 'flh':
             metric = output/(turbine.power_curve.value.max()/1e3)
         elif optimization_metric.lower() == 'density':
@@ -288,17 +287,18 @@ def compute_power_output(df,offshore_points=None):
     df['specific_capacity_class'] = ''
     for coords in df.index.droplevel(2).unique():
         try:
-            offshore = coords in offshore_points
+            shore_designation = 'offshore' if coords in offshore_points else 'onshore'
         except TypeError:
-            offshore = False
-        optimal_turbine = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric,offshore=offshore)
-        speed_at_hub = df.loc[coords].v_50m*(turbines[optimal_turbine].hub_height/50)**df.loc[coords].hellmann
-        output = wpl.power_output.power_curve(speed_at_hub,turbines[optimal_turbine].power_curve.wind_speed,turbines[optimal_turbine].power_curve.value) # [Wh]
+            shore_designation = 'onshore'
+        optimal_turbine = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric,shore_designation=shore_designation)
+        turbine = turbines[shore_designation][optimal_turbine]
+        speed_at_hub = df.loc[coords].v_50m*(turbine.hub_height/50)**df.loc[coords].hellmann
+        output = wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value) # [Wh]
         df.loc[idx[coords],'kWh'] = list(output/1e3) # [kWh]
         df.loc[idx[coords],'turbine_type'] = optimal_turbine
-        df.loc[idx[coords],'rated_power_MW'] = turbines[optimal_turbine].nominal_power/1e6 # [MW]
-        df.loc[idx[coords],'rotor_diameter'] = turbines[optimal_turbine].rotor_diameter # [m]
-        df.loc[idx[coords],'specific_capacity_class'] = turbine_classes[optimal_turbine]
+        df.loc[idx[coords],'rated_power_MW'] = turbine.nominal_power/1e6 # [MW]
+        df.loc[idx[coords],'rotor_diameter'] = turbine.rotor_diameter # [m]
+        df.loc[idx[coords],'specific_capacity_class'] = turbine_classes[shore_designation][optimal_turbine]
 
 def process_country(country):
     '''Extract files to DataFrame, preprocess dataframe, and compute power output for each country in the "countries" list'''
