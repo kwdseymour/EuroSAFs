@@ -97,7 +97,8 @@ europe.to_crs(crs=world.crs,inplace=True)
 # Save the result to a shapefile
 europe.to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_WGS84.shp'))
 
-# PV and wind resources at every location within a country use the nearest wind/PV resource data point. These points are spaced according to the MERRA resolution. For some locations near the borders of countries, the nearest PV/wind data point will be outside the country's borders. Thus, in order to incorporate these points, a point inside the borders is found (where possible).
+# PV and wind resources at every location within a country use the nearest wind/PV resource data point. These points are spaced according to the MERRA resolution. 
+# For some locations near the borders of countries, the nearest PV/wind data point will be outside the country's borders. Thus, in order to incorporate these points, a point inside the borders is found (where possible).
 # Generate country grids
 def generated_gridded_country(country, map_eu):
     '''Extracts the geometry of the given country and subdivides it into a grid with dimensions equivalent to the 
