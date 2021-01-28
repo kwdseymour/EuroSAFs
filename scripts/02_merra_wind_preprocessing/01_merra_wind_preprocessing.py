@@ -82,10 +82,108 @@ if not os.path.isdir(results_path):
 sys.path.insert(1, os.path.join(SAF_directory,'scripts','03_plant_optimization'))
 from plant_optimization.plant_optimizer import Component,costs_NPV
 
-
 # Add a logger
 from plant_optimization.utilities import create_logger
 logger = create_logger(SAF_directory,__name__,__file__)
+
+class Turbine(wpl.wind_turbine.WindTurbine):
+    '''Child class of the windpowerlib.wind_turbine.WindTurbine class.
+    turbine_type: a turbine model available in the windpowerlib library
+    onshore: TRUE or False, indicates whether the wind turbine is an onshore of offshore variant
+    classifications: a DataFrame indicating whether each model has on/offshore variants as well as the IEC class of the wind turbine (from classifications.csv)
+    component_specs: a Dataframe holding the cost specifications of wind turbine classes (from plant_assumptions.xlsx)
+    turbine_specs: the oedb DataFrame from the windpowerlib package holding information about the possible hub heights of wind turbines among others
+    hub_height: can be specified (in meters) but may be overridden by the "assign_site" function
+    wpl_kwargs: are any arguments accepted by the windpowerlib.wind_turbine.WindTurbine class
+
+    Initially selects the hub height that matches most closely to the closest wind turbine category in the 2018 JRC report:
+     - Turbine specific capacity of 0.2 kW/m2 (low specific capacity) and at 200 m hub height (high hub height)
+     - Turbine specific capacity of 0.3 kW/m2 (medium specific capacity), at 100 m hub height (medium hub height)
+     - Turbine specific capacity of 0.47 kW/m2 (high specific capacity), at 50 m hub
+    '''
+    specific_capacity_classes = {0.2:'lo',0.3:'mid',0.47:'hi'} # 2018 JRC report wind turbing specific capacity classes used for determining costs
+    rep_specific_capacities = [0.2,0.3,0.47] # 2018 JRC report wind turbine class representative specific capacities
+    rep_hub_heights = {0.2:200, 0.3:100, 0.47:50} # 2018 JRC report wind turbine class hub heights for each of the three representative specific capacities
+    iec_wind_classes = {1:10,2:8.5,3:7.5} # The wind clases (1-3, dictionary keys) are assigned a maximum wind speed (dictionary values) that can be sustained
+    def __init__(self, turbine_type, onshore, classifications, component_specs, turbine_specs, hub_height=None,  wpl_kwargs={}):
+        self.specific_capacity = turbine_specs.loc[turbine_specs.turbine_type==turbine_type,'nominal_power'].item()/1e3/turbine_specs.loc[turbine_specs.turbine_type==turbine_type,'rotor_area'].item() # [kW/m2]
+        hub_heights_str = str(turbine_specs.loc[turbine_specs.turbine_type==turbine_type,'hub_height'].item()).replace(' ','')
+        self.hub_heights = sorted([float(x) for x in re.split(';|/|,',hub_heights_str) if len(x)>0])
+        self.iec_class = classifications.loc[classifications.turbine_type==turbine_type,'iec_class'].iloc[0]
+        if hub_height==None:
+            # Assigns a hub height to align most closely with the JRC representative types
+            self.rep_specific_capacity = min(self.rep_specific_capacities, key=lambda x:abs(x-self.specific_capacity)) # Selects the JRC representative specific capacity closest to that of this turbine
+            self.rep_hub_height = self.rep_hub_heights[self.rep_specific_capacity] # Selects the representative hub height for the JRC wind turbine class closets to this turbine's specific capacity
+            self.jrc_hub_height = min(self.hub_heights, key=lambda x:abs(x-self.rep_hub_height)) # [m] Selects the hub height for this model that is closest to the representative hub height found above
+        super().__init__(turbine_type=turbine_type, hub_height=self.jrc_hub_height, **wpl_kwargs)
+        if onshore:
+            if classifications.loc[classifications.turbine_type==turbine_type,'onshore'].iloc[0] != 1:
+                raise Exception(f'This wind turbine model ({turbine_type}) does not have an onshore variant according to the classification.csv file.')
+            self.costs = Component('wind',specs=component_specs,wind_class=self.specific_capacity_classes[self.rep_specific_capacity])   
+        else:
+            if classifications.loc[classifications.turbine_type==turbine_type,'offshore'].iloc[0] != 1:
+                raise Exception(f'This wind turbine model ({turbine_type}) does not have an offshore variant according to the classification.csv file.')
+            self.costs = Component('wind',specs=component_specs,wind_class='jacket') # Note that we are assuming ALL offshore wind turbines are medium-distance to shore, jacket base types
+        
+    def reset_hub_height(self):
+        self.hub_height = self.jrc_hub_height
+        
+    def assign_site(self,v_50m,hellmann):
+        '''Attempts to assign a hub height to the turbine model that complies with the IEC classification.
+        Returns True is the assignment is successful.
+        Returns False if it is found that the wind speeds are too high for even the lowest hub height. In this case the representative hub height is assigned to the model.
+        '''
+        self.reset_hub_height()
+        hub_speed = v_50m*(self.hub_height/50)**hellmann
+        mean_hub_speed = hub_speed.mean()
+        if self.hub_height in self.hub_heights:
+            hub_height_idx = self.hub_heights.index(self.hub_height)
+        else:
+            logger.error(f'A custom hub height ({self.hub_height}) was assigned to the turbine ({self.turbine_type}). This is being overridden.')
+            hub_height_idx = len(self.hub_heights)-1
+        feasible = False
+        while hub_height_idx >= 0:
+            if mean_hub_speed > self.iec_wind_classes[self.iec_class] and hub_height_idx > 0:
+                hub_height_idx -= 1
+                self.hub_height = self.hub_heights[hub_height_idx]
+                hub_speed = v_50m*(self.hub_height/50)**hellmann
+                mean_hub_speed = hub_speed.mean()
+            elif mean_hub_speed > self.iec_wind_classes[self.iec_class] and hub_height_idx == 0:
+                feasible = False
+                self.reset_hub_height()
+                break
+            else:
+                feasible = True
+                break
+        return feasible
+
+## Generate wind turbine objects
+turbines = {'onshore':{},'offshore':{}}
+component_specs = pd.read_excel(os.path.join(SAF_directory,'data','plant_assumptions.xlsx'),sheet_name='data',index_col=0)
+turbine_specs = pd.read_csv(os.path.join(os.path.dirname(wpl.__file__),'oedb','turbine_data.csv'))
+classifications = pd.read_csv(os.path.join(os.path.dirname(sys.argv[0]),'classification.csv')) # Reads a csv that indicates the on-offshore and IEC classification of wind turbines
+all_types = list(wpl.wind_turbine.get_turbine_types('local',filter_=True,print_out=False)['turbine_type'].unique())
+invalids = [] #['SWT142/3150','SWT113/2300','SWT130/3300','S152/6330'] # The power curves for these turbines appear unrealistic
+for x in invalids:
+    all_types.remove(x)
+onshore_types = [x for x in all_types if x in list(classifications.loc[classifications.onshore==1,'turbine_type'])] # List of on-shore turbine models
+offshore_types = [x for x in all_types if x in list(classifications.loc[classifications.offshore==1,'turbine_type'])] # List of off-shore turbine models
+missing_shore_designation = [x for x in all_types if x not in classifications.turbine_type.unique()]
+if len(missing_shore_designation) > 0:
+    logger.error(f'The following wind turbine types were not assigned on- or off-shore designations in the classifications.csv file. They are therefore not being used: {missing_shore_designation}')
+loading_errors = {}
+for model in all_types:
+    try:
+        if model in onshore_types:
+            turbines['onshore'][model] = Turbine(turbine_type=model,onshore=True,classifications=classifications,component_specs=component_specs,turbine_specs=turbine_specs)
+        if model in offshore_types: # Note that we are assuming ALL offshore wind turbines are medium-distance to shore, jacket base types
+            turbines['offshore'][model] = Turbine(turbine_type=model,onshore=False,classifications=classifications,component_specs=component_specs,turbine_specs=turbine_specs)
+    except Exception as e:
+        loading_errors[model] = e
+if len(loading_errors)>0:
+    logger.info('There was a problem loading the following wind turbine models: {}'.format(str(loading_errors.keys())))
+logger.info('The following onshore wind turbine models were properly loaded: {}'.format(str(turbines['onshore'].keys())))
+logger.info('The following offshore wind turbine models were properly loaded: {}'.format(str(turbines['offshore'].keys())))
 
 # Validate countries in config file. Remove countries not found in the MERRA folder
 countries_filepath = os.path.join(os.path.dirname(sys.argv[0]),f'{script_name}.csv')
@@ -192,59 +290,6 @@ def preprocess_df(df_wind,country):
     df_wind['hellmann'] = (np.log(df_wind.v_50m) - np.log(df_wind.v_10m)) / (np.log(50) - np.log(10 + df_wind.DISPH)) # (Mosshammer, 2016)
     df_wind.drop(columns=['U10M','V10M','U50M','V50M'],inplace=True)
 
-## Generate wind turbine objects
-turbines = {'onshore':{},'offshore':{}}
-turbine_classes = {'onshore':{},'offshore':{}}
-turbine_cost_objects = {'onshore':{},'offshore':{}}
-component_specs = pd.read_excel(os.path.join(SAF_directory,'data','plant_assumptions.xlsx'),sheet_name='data',index_col=0)
-# turbine_specs = wpl.wind_turbine.load_turbine_data_from_oedb()
-turbine_specs = pd.read_csv(os.path.join(os.path.dirname(wpl.__file__),'oedb','turbine_data.csv'))
-all_types = list(wpl.wind_turbine.get_turbine_types('local',filter_=True,print_out=False)['turbine_type'].unique())
-classifications = pd.read_csv(os.path.join(os.path.dirname(sys.argv[0]),'classification.csv')) # Reads a csv that indicates the on-offshore and IEC classification of wind turbines
-onshore_types = [x for x in all_types if x in list(classifications.loc[classifications.onshore==1,'turbine_type'])] # List of on-shore turbine models
-offshore_types = [x for x in all_types if x in list(classifications.loc[classifications.offshore==1,'turbine_type'])] # List of off-shore turbine models
-missing_shore_designation = [x for x in all_types if x not in classifications.turbine_type.unique()]
-if len(missing_shore_designation) > 0:
-    logger.error(f'The following wind turbine types were not assigned on- or off-shore designations in the classifications.csv file. They are therefore not being used: {missing_shore_designation}')
-specific_capacity_classes = {0.2:'lo',0.3:'mid',0.47:'hi'} # 2018 JRC report wind turbing specific capacity classes used for determining costs
-rep_specific_capacities = [0.2,0.3,0.47] # 2018 JRC report wind turbine class representative specific capacities
-rep_hub_heights = {0.2:200, 0.3:100, 0.47:50} # 2018 JRC report wind turbine class hub heights for each of the three representative specific capacities
-loading_errors = {}
-for model in all_types:
-    '''
-    Select the hub that matches most closely to the closest wind turbine category in the 2018 JRC report:
-     - Turbine specific capacity of 0.2 kW/m2 (low specific capacity) and at 200 m hub height (high hub height)
-     - Turbine specific capacity of 0.3 kW/m2 (medium specific capacity), at 100 m hub height (medium hub height)
-     - Turbine specific capacity of 0.47 kW/m2 (high specific capacity), at 50 m hub
-    '''
-    try:
-        specific_capacity = turbine_specs.loc[turbine_specs.turbine_type==model,'nominal_power'].item()/1e3/turbine_specs.loc[turbine_specs.turbine_type==model,'rotor_area'].item() # [kW/m2]
-        hub_height_item = str(turbine_specs.loc[turbine_specs.turbine_type==model,'hub_height'].item()).replace(' ','')
-        hub_height_list = [float(x) for x in re.split(';|/|,',hub_height_item) if len(x)>0]
-        rep_specific_capacity = min(rep_specific_capacities, key=lambda x:abs(x-specific_capacity)) # Selects the JRC representative specific capacity closest to that of this turbine
-        rep_hub_height = rep_hub_heights[rep_specific_capacity] # Selects the representative hub height for the JRC wind turbine class closets to this turbine's specific capacity
-        hub_height = min(hub_height_list, key=lambda x:abs(x-rep_hub_height)) # [m] Selects the hub height for this model that is closest to the representative hub height found above
-        if model in onshore_types:
-            turbines['onshore'][model] = wpl.wind_turbine.WindTurbine(turbine_type=model,hub_height=hub_height)
-            turbines['onshore'][model].iec_class = classifications.loc[classifications.turbine_type==model,'iec_class'].item()
-            turbine_classes['onshore'][model] = specific_capacity_classes[rep_specific_capacity]
-            turbine_cost_objects['onshore'][model] = Component('wind',specs=component_specs,wind_class=specific_capacity_classes[rep_specific_capacity])
-        if model in offshore_types: # Note that we are assuming ALL offshore wind turbines are medium-distance to shore, jacket base types
-            turbines['offshore'][model] = wpl.wind_turbine.WindTurbine(turbine_type=model,hub_height=hub_height)
-            turbines['onshore'][model].iec_class = classifications.loc[classifications.turbine_type==model,'iec_class'].item()
-            turbine_classes['offshore'][model] = specific_capacity_classes[rep_specific_capacity]
-            turbine_cost_objects['offshore'][model] = Component('wind',specs=component_specs,wind_class='jacket') # Note that we are assuming ALL offshore wind turbines are medium-distance to shore, jacket base types
-    except Exception as e:
-        loading_errors[model] = e
-if len(loading_errors)>0:
-    logger.info('There was a problem loading the following wind turbine models: {}'.format(str(loading_errors.keys())))
-logger.info('The following onshore wind turbine models were properly loaded: {}'.format(str(turbines['onshore'].keys())))
-logger.info('The following offshore wind turbine models were properly loaded: {}'.format(str(turbines['offshore'].keys())))
-
-turbine_spacing = 5 # meters of spacing per meter of rotor diameter [Bryer, 2012]
-models=[]
-specific_outputs=[]
-
 def assign_turbine_model(df,optimization_metric='lcoe',shore_designation='onshore'):
     '''Calculates hypothetical power output for each turbine model in "models" and returns the model with the most optimal optimization metric value.
     
@@ -253,30 +298,36 @@ def assign_turbine_model(df,optimization_metric='lcoe',shore_designation='onshor
     "flh": full load hours
     "density": the power production density measured in kWh per land area required for the turbine
     '''
-    winner_model = ''
+    turbine_spacing = 5 # meters of spacing per meter of rotor diameter [Bryer, 2012]
+    winning_turbine = None
     winning_value = 0
-    for name,turbine in turbines[shore_designation].items():
+    winning_output = None
+    for turbine in turbines[shore_designation].values():
+        feasible_model = turbine.assign_site(df.v_50m,df.hellmann)
+        if not feasible_model:
+            continue
         speed_at_hub = df.v_50m*(turbine.hub_height/50)**df.hellmann
-        output = sum(wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value))/1e3 #kWh
-        cost_object = turbine_cost_objects[shore_designation][name]
+        output = wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value)
+        output_sum = sum(wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value))/1e3 #kWh
         if optimization_metric.lower() == 'lcoe':
-            metric = costs_NPV(capex=cost_object.CAPEX, opex=cost_object.OPEX,
-                                discount_rate=component_specs.at['discount_rate', 'value'], lifetime=cost_object.lifetime,
-                                capacity=turbine.nominal_power / 1e3) / np.sum([output/(1+component_specs.at['discount_rate', 'value'])**n for n in np.arange(cost_object.lifetime+1)])  # EUR/kWh
+            metric = costs_NPV(capex=turbine.costs.CAPEX, opex=turbine.costs.OPEX,
+                                discount_rate=component_specs.at['discount_rate', 'value'], lifetime=turbine.costs.lifetime,
+                                capacity=turbine.nominal_power / 1e3) / np.sum([output_sum/(1+component_specs.at['discount_rate', 'value'])**n for n in np.arange(turbine.costs.lifetime+1)])  # EUR/kWh
         elif optimization_metric.lower() == 'flh':
-            metric = output/(turbine.power_curve.value.max()/1e3)
+            metric = output_sum/(turbine.power_curve.value.max()/1e3)
         elif optimization_metric.lower() == 'density':
             turbine_area = (turbine.rotor_diameter*turbine_spacing)**2 # [m^2]
-            metric = output/turbine_area #kWh/m2
+            metric = output_sum/turbine_area #kWh/m2
         else:
             logger.error('Invalid wind turbine optimization_metric. Must be "lcoe", "flh", or "density".')
             sys.exit()
         if metric > winning_value:
-            winner_model = name
+            winning_turbine = turbine
             winning_value = metric
-    if winner_model == '':
+            winning_output = output
+    if winning_turbine == None:
         logger.error(f'Problem assigning a turbine model {df}. Latest metric value {metric}.')
-    return winner_model
+    return winning_turbine, winning_output
         
 def compute_power_output(df,offshore_points=None):
     '''Calculates the hourly power output from the wind speed data using an optimal wind turbine.
@@ -290,20 +341,24 @@ def compute_power_output(df,offshore_points=None):
     df['rotor_diameter'] = ''
     df['rated_power_MW'] = ''
     df['specific_capacity_class'] = ''
+    df['rep_hub_height'] = ''
+    df['hub_height'] = ''
     for coords in df.index.droplevel(2).unique():
         try:
             shore_designation = 'offshore' if list(coords) in offshore_points else 'onshore'
         except TypeError:
             shore_designation = 'onshore'
-        optimal_turbine = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric,shore_designation=shore_designation)
-        turbine = turbines[shore_designation][optimal_turbine]
-        speed_at_hub = df.loc[coords].v_50m*(turbine.hub_height/50)**df.loc[coords].hellmann
-        output = wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value) # [Wh]
+        turbine,output = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric,shore_designation=shore_designation)
+        # turbine = turbines[shore_designation][optimal_turbine]
+        # speed_at_hub = df.loc[coords].v_50m*(turbine.hub_height/50)**df.loc[coords].hellmann
+        # output = wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value) # [Wh]
         df.loc[idx[coords],'kWh'] = list(output/1e3) # [kWh]
-        df.loc[idx[coords],'turbine_type'] = optimal_turbine
+        df.loc[idx[coords],'turbine_type'] = turbine.turbine_type
         df.loc[idx[coords],'rated_power_MW'] = turbine.nominal_power/1e6 # [MW]
         df.loc[idx[coords],'rotor_diameter'] = turbine.rotor_diameter # [m]
-        df.loc[idx[coords],'specific_capacity_class'] = turbine_classes[shore_designation][optimal_turbine]
+        df.loc[idx[coords],'specific_capacity_class'] = turbine.rep_specific_capacity
+        df.loc[idx[coords],'rep_hub_height'] = turbine.jrc_hub_height # [m]
+        df.loc[idx[coords],'hub_height'] = turbine.hub_height # [m]
 
 def process_country(country):
     '''Extract files to DataFrame, preprocess dataframe, and compute power output for each country in the "countries" list'''
