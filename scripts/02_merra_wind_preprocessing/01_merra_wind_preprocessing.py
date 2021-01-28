@@ -106,9 +106,11 @@ logger.info('Country set used for analysis: {}'.format(countries))
 # Read evaluation points file used to filter out points which are without country borders
 try:
     with open(os.path.join(SAF_directory,'data','Countries_WGS84/processed/Europe_Evaluation_Points.json'),'r') as fp:
-        eval_points = json.load(fp)
-except FileNotFoundError:
-    raise Exception('Europe_Evaluation_Points.json file not found. This file containing the MERRA points within each country\'s borders must be available at data/Countries_WGS84/processed/.')
+        land_points = json.load(fp)
+    with open(os.path.join(SAF_directory,'data','Countries_WGS84/processed/Coast_Evaluation_Points.json'),'r') as fp:
+        coast_points = json.load(fp)
+except FileNotFoundError as e:
+    raise Exception(f'{e.filename} file not found. This file containing the MERRA points within each country\'s borders must be available at data/Countries_WGS84/processed/.')
 
 def extract_date(data_set):
     """
@@ -174,10 +176,11 @@ def preprocess_df(df_wind,country):
     df_wind.set_index(['lat','lon','time'],inplace=True)
     df_wind.sort_index(inplace=True)
 
-    # Drop points not in "eval_points"
+    # Drop points not in "coast_points" or "land_points"
     df_len = len(df_wind) #Store the length for comparison
     # df_wind.drop(df_wind.loc[~df_wind.index.droplevel(2).isin([(x[1],x[0]) for x in eval_points[country]])].index,inplace=True)
-    df_wind.drop(df_wind.loc[~df_wind.index.droplevel(2).isin(eval_points[country])].index,inplace=True)
+    eval_points = land_points.get(country,[]) + coast_points.get(country,[])
+    df_wind.drop(df_wind.loc[~df_wind.index.droplevel(2).isin(eval_points)].index,inplace=True)
     logger.info(f'Dropped {(df_len-len(df_wind))/df_len*100:.1f}% of points due to location outside {country} borders.')
 
     # Calculate the wind speed from the northward and eastward velocity components
@@ -197,12 +200,12 @@ component_specs = pd.read_excel(os.path.join(SAF_directory,'data','plant_assumpt
 # turbine_specs = wpl.wind_turbine.load_turbine_data_from_oedb()
 turbine_specs = pd.read_csv(os.path.join(os.path.dirname(wpl.__file__),'oedb','turbine_data.csv'))
 all_types = list(wpl.wind_turbine.get_turbine_types('local',filter_=True,print_out=False)['turbine_type'].unique())
-on_off_shore = pd.read_csv(os.path.join(os.path.dirname(sys.argv[0]),'on_off_shore.csv')) # Reads a csv that indicates whether each turbine model has on- and off-shore variants
-onshore_types = [x for x in all_types if x in list(on_off_shore.loc[on_off_shore.onshore==1,'turbine_type'])] # List of on-shore turbine models
-offshore_types = [x for x in all_types if x in list(on_off_shore.loc[on_off_shore.offshore==1,'turbine_type'])] # List of off-shore turbine models
-missing_shore_designation = [x for x in all_types if x not in on_off_shore.turbine_type.unique()]
+classifications = pd.read_csv(os.path.join(os.path.dirname(sys.argv[0]),'classification.csv')) # Reads a csv that indicates the on-offshore and IEC classification of wind turbines
+onshore_types = [x for x in all_types if x in list(classifications.loc[classifications.onshore==1,'turbine_type'])] # List of on-shore turbine models
+offshore_types = [x for x in all_types if x in list(classifications.loc[classifications.offshore==1,'turbine_type'])] # List of off-shore turbine models
+missing_shore_designation = [x for x in all_types if x not in classifications.turbine_type.unique()]
 if len(missing_shore_designation) > 0:
-    logger.error(f'The following wind turbine types were not assigned on- or off-shore designations in the on_off_shore.csv file. They are therefore not being used: {missing_shore_designation}')
+    logger.error(f'The following wind turbine types were not assigned on- or off-shore designations in the classifications.csv file. They are therefore not being used: {missing_shore_designation}')
 specific_capacity_classes = {0.2:'lo',0.3:'mid',0.47:'hi'} # 2018 JRC report wind turbing specific capacity classes used for determining costs
 rep_specific_capacities = [0.2,0.3,0.47] # 2018 JRC report wind turbine class representative specific capacities
 rep_hub_heights = {0.2:200, 0.3:100, 0.47:50} # 2018 JRC report wind turbine class hub heights for each of the three representative specific capacities
@@ -223,10 +226,12 @@ for model in all_types:
         hub_height = min(hub_height_list, key=lambda x:abs(x-rep_hub_height)) # [m] Selects the hub height for this model that is closest to the representative hub height found above
         if model in onshore_types:
             turbines['onshore'][model] = wpl.wind_turbine.WindTurbine(turbine_type=model,hub_height=hub_height)
+            turbines['onshore'][model].iec_class = classifications.loc[classifications.turbine_type==model,'iec_class'].item()
             turbine_classes['onshore'][model] = specific_capacity_classes[rep_specific_capacity]
             turbine_cost_objects['onshore'][model] = Component('wind',specs=component_specs,wind_class=specific_capacity_classes[rep_specific_capacity])
         if model in offshore_types: # Note that we are assuming ALL offshore wind turbines are medium-distance to shore, jacket base types
             turbines['offshore'][model] = wpl.wind_turbine.WindTurbine(turbine_type=model,hub_height=hub_height)
+            turbines['onshore'][model].iec_class = classifications.loc[classifications.turbine_type==model,'iec_class'].item()
             turbine_classes['offshore'][model] = specific_capacity_classes[rep_specific_capacity]
             turbine_cost_objects['offshore'][model] = Component('wind',specs=component_specs,wind_class='jacket') # Note that we are assuming ALL offshore wind turbines are medium-distance to shore, jacket base types
     except Exception as e:
@@ -287,7 +292,7 @@ def compute_power_output(df,offshore_points=None):
     df['specific_capacity_class'] = ''
     for coords in df.index.droplevel(2).unique():
         try:
-            shore_designation = 'offshore' if coords in offshore_points else 'onshore'
+            shore_designation = 'offshore' if list(coords) in offshore_points else 'onshore'
         except TypeError:
             shore_designation = 'onshore'
         optimal_turbine = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric,shore_designation=shore_designation)
@@ -312,9 +317,9 @@ def process_country(country):
     logger.info(f'Initial caching for {country}...')
     df_wind.to_csv(os.path.join(cache_path,cache_file_name))
     logger.info(f'Initial {country} cache saved')
-    # ADD SOME CODE HERE TO IDENTIFY POINTS THAT ARE OFFSHORE
-    logger.error(f'The points in {country} are not assigned an on/offshore designation. Thus, all points are assumed to be onshore.')
-    offshore_points = None
+    # # ADD SOME CODE HERE TO IDENTIFY POINTS THAT ARE OFFSHORE
+    # logger.error(f'The points in {country} are not assigned an on/offshore designation. Thus, all points are assumed to be onshore.')
+    offshore_points = coast_points.get(country,[])
     # Calculate power output
     compute_power_output(df_wind,offshore_points=offshore_points)
     # Cache & save results
