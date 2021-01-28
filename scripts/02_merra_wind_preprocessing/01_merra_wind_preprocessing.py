@@ -38,6 +38,7 @@ import windpowerlib as wpl
 import logging
 import time
 import json
+import multiprocessing as mp
 
 sstime = time.time() # time in seconds since January 1, 1970 (float)
 sstime_string = datetime.datetime.fromtimestamp(sstime).strftime('%d%m%Y%H') # takes sstime and transfers it into date and time of local timezone  (string with day, month year and hour)
@@ -384,7 +385,14 @@ def process_country(country):
     df_wind.to_csv(os.path.join(results_path,f'{country}.csv'))
     logger.info(f'Results for {country} saved')
 
-for country in countries:
-    process_country(country)
+# for country in countries:
+#     process_country(country)
+
+cores_avail = mp.cpu_count()
+logger.info(f'{cores_avail} cores available')
+P = mp.Pool(min(cores_avail,max_processes,len(countries)))
+P.map(process_country,countries)
+P.close()
+P.join()
 
 logger.info('Script time: {:.2f} seconds.'.format(time.time()-sstime))
