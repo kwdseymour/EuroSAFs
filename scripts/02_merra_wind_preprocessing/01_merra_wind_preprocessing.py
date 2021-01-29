@@ -105,17 +105,31 @@ class Turbine(wpl.wind_turbine.WindTurbine):
     specific_capacity_classes = {0.2:'lo',0.3:'mid',0.47:'hi'} # 2018 JRC report wind turbing specific capacity classes used for determining costs
     rep_specific_capacities = [0.2,0.3,0.47] # 2018 JRC report wind turbine class representative specific capacities
     rep_hub_heights = {0.2:200, 0.3:100, 0.47:50} # 2018 JRC report wind turbine class hub heights for each of the three representative specific capacities
-    iec_wind_classes = {1:10,2:8.5,3:7.5} # The wind clases (1-3, dictionary keys) are assigned a maximum wind speed (dictionary values) that can be sustained
+    iec_wind_classes = {1:15,2:8.5,3:7.5} # The wind clases (1-3, dictionary keys) are assigned a maximum wind speed (dictionary values) that can be sustained
+    logger.info('Some code changed above. 10-->15 m/s')
     def __init__(self, turbine_type, onshore, classifications, component_specs, turbine_specs, hub_height=None,  wpl_kwargs={}):
         self.specific_capacity = turbine_specs.loc[turbine_specs.turbine_type==turbine_type,'nominal_power'].item()/1e3/turbine_specs.loc[turbine_specs.turbine_type==turbine_type,'rotor_area'].item() # [kW/m2]
         hub_heights_str = str(turbine_specs.loc[turbine_specs.turbine_type==turbine_type,'hub_height'].item()).replace(' ','')
-        self.hub_heights = sorted([float(x) for x in re.split(';|/|,',hub_heights_str) if len(x)>0])
+        if hub_heights_str == 'nan': # Some turbines are missing hub heights. Assume a hub height providing 20m tip clearance
+            self.hub_heights = [turbine_specs.loc[turbine_specs.turbine_type==turbine_type,'rotor_diameter'].item()/2 + 20]
+        else:
+            self.hub_heights = sorted([float(x) for x in re.split(';|/|,',hub_heights_str) if len(x)>0])
         self.iec_class = classifications.loc[classifications.turbine_type==turbine_type,'iec_class'].iloc[0]
+        self.custom_power_curve = bool(classifications.loc[classifications.turbine_type==turbine_type,'custom_power_curve'].iloc[0])
         if hub_height==None:
             # Assigns a hub height to align most closely with the JRC representative types
             self.rep_specific_capacity = min(self.rep_specific_capacities, key=lambda x:abs(x-self.specific_capacity)) # Selects the JRC representative specific capacity closest to that of this turbine
             self.rep_hub_height = self.rep_hub_heights[self.rep_specific_capacity] # Selects the representative hub height for the JRC wind turbine class closets to this turbine's specific capacity
             self.jrc_hub_height = min(self.hub_heights, key=lambda x:abs(x-self.rep_hub_height)) # [m] Selects the hub height for this model that is closest to the representative hub height found above
+        if self.custom_power_curve:
+            custom_power_curves = pd.read_csv(os.path.join(os.path.dirname(sys.argv[0]),'custom_power_curves.csv'),index_col=0) # Reads a csv file with custom power curves for some turbines
+            cpc = custom_power_curves.loc[[turbine_type]].copy()
+            cpc.dropna(axis=1,inplace=True)
+            cpc = cpc.transpose().drop('Source').reset_index()
+            cpc.columns = ['wind_speed','value']
+            cpc = cpc.astype('float')
+            wpl_kwargs['power_curve'] = cpc
+            logger.info(f'Custom power curve for {turbine_type} loaded.')
         super().__init__(turbine_type=turbine_type, hub_height=self.jrc_hub_height, **wpl_kwargs)
         if onshore:
             if classifications.loc[classifications.turbine_type==turbine_type,'onshore'].iloc[0] != 1:
@@ -309,25 +323,30 @@ def assign_turbine_model(df,optimization_metric='lcoe',shore_designation='onshor
             continue
         speed_at_hub = df.v_50m*(turbine.hub_height/50)**df.hellmann
         output = wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value)
-        output_sum = sum(wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value))/1e3 #kWh
+        output_sum = sum(output)/1e3 #kWh
         if optimization_metric.lower() == 'lcoe':
             metric = costs_NPV(capex=turbine.costs.CAPEX, opex=turbine.costs.OPEX,
                                 discount_rate=component_specs.at['discount_rate', 'value'], lifetime=turbine.costs.lifetime,
                                 capacity=turbine.nominal_power / 1e3) / np.sum([output_sum/(1+component_specs.at['discount_rate', 'value'])**n for n in np.arange(turbine.costs.lifetime+1)])  # EUR/kWh
+            winner = metric < winning_value
         elif optimization_metric.lower() == 'flh':
             metric = output_sum/(turbine.power_curve.value.max()/1e3)
+            winner = metric > winning_value
         elif optimization_metric.lower() == 'density':
             turbine_area = (turbine.rotor_diameter*turbine_spacing)**2 # [m^2]
             metric = output_sum/turbine_area #kWh/m2
+            winner = metric > winning_value
         else:
             logger.error('Invalid wind turbine optimization_metric. Must be "lcoe", "flh", or "density".')
             sys.exit()
-        if metric > winning_value:
+        if winner:
             winning_turbine = turbine
             winning_value = metric
             winning_output = output
     if winning_turbine == None:
-        logger.error(f'Problem assigning a turbine model {df}. Latest metric value {metric}.')
+        refnum = os.getpid()
+        logger.error(f'Problem assigning a turbine model. Latest metric value {metric}. DataFrame saved to the cache with reference: {refnum}.')
+        df.to_csv(os.path.join(cache_path,f'{refnum}.csv'))
     return winning_turbine, winning_output
         
 def compute_power_output(df,offshore_points=None):
@@ -371,7 +390,7 @@ def process_country(country):
     preprocess_df(df_wind,country)
     # Cache DatFrame
     logger.info(f'Initial caching for {country}...')
-    df_wind.to_csv(os.path.join(cache_path,cache_file_name))
+    df_wind.to_parquet(os.path.join(cache_path,f'{cache_file_name}.parquet.gzip'),compression='gzip')
     logger.info(f'Initial {country} cache saved')
     # # ADD SOME CODE HERE TO IDENTIFY POINTS THAT ARE OFFSHORE
     # logger.error(f'The points in {country} are not assigned an on/offshore designation. Thus, all points are assumed to be onshore.')
@@ -380,9 +399,9 @@ def process_country(country):
     compute_power_output(df_wind,offshore_points=offshore_points)
     # Cache & save results
     logger.info(f'Saving results for {country}...')
-    df_wind.to_csv(os.path.join(cache_path,cache_file_name))
+    df_wind.to_parquet(os.path.join(cache_path,f'{cache_file_name}.parquet.gzip'),compression='gzip')
     df_wind.to_parquet(os.path.join(results_path,f'{country}.parquet.gzip'),compression='gzip')
-    df_wind.to_csv(os.path.join(results_path,f'{country}.csv'))
+    # df_wind.to_csv(os.path.join(results_path,f'{country}.csv'))
     logger.info(f'Results for {country} saved')
 
 # for country in countries:
