@@ -22,7 +22,7 @@ This script runs the plant optimizer for every location in the given country.
     "scratch/logs/"
 If this script is run on an Euler home directory, it will locate the "scratch" path via the $SCRATCH shell environment variable. Otherwise it must be located in the "SAFlogistics" directory.
 
-- evaluation points: this text file contains a line for each evaluated point with a message indicating its success or reason for error.
+- evaluation points: this text file contains a line for each evaluated point with a message indicating its success or reason for error. 
 It is saved in the following path relative to the "SAFlogistics" directory:
     "/results/{script_name}/eval_points.txt
 
@@ -37,6 +37,8 @@ import os
 import time
 import datetime
 import logging
+import pandas as pd
+import multiprocessing
 import plant_optimization as pop
 
 sstime = time.time()
@@ -50,6 +52,9 @@ parser.add_argument('-c','--country',
     type=str)
 parser.add_argument('-d','--SAF_directory',
     help='The path to the "SAFlogistics" directory',)
+parser.add_argument('-p','--max_processes',
+    help='Controls the number of threads to apply to parallel algorithms (of the optimizer)',
+    default=None)
 parser.add_argument('-t','--time_limit',
     help='Sets the time limit of the optimizer (seconds)',
     default=2000,
@@ -66,71 +71,102 @@ parser.add_argument('-v','--verbose_optimizer',
     action='store_true',
     help='Prints the optimizer output.',
     default=False)
-parser.add_argument('-points','--points',
-    help='The point for which to run the optimization.',
-    nargs='+')
-parser.add_argument('-s','--source',
-    help='The source for the wind data.',
-    type=str)
-
+parser.add_argument('-s','--save_operation',
+    action='store_true',
+    help='Saves the plant operation data to an operations folder in the results folder.',
+    default=False)
 args = parser.parse_args()
+
 MIPGap = args.MIPGap
 DisplayInterval = args.DisplayInterval
 silent_optimizer = not(args.verbose_optimizer)
+save_operation = args.save_operation
 timelimit = args.time_limit
 country = args.country
-source = args.source
-points = args.points
+max_processes = args.max_processes
 SAF_directory = args.SAF_directory
-
-points = list(map(eval, points))[0]
+if 'cluster/home' in os.getcwd():
+    scratch_path = os.environ['SCRATCH']
+else:
+    scratch_path = os.path.join(SAF_directory,'scratch')
 
 # Define path to logs, cache, and results folders. Create directories if they don't already exist
-logs_path = os.path.join(SAF_directory,'logs')
+logs_path = os.path.join(scratch_path,'logs')
 if not os.path.isdir(logs_path):
     os.mkdir(logs_path)
-cache_path = os.path.join(SAF_directory,'cache')
+cache_path = os.path.join(scratch_path,'cache')
 if not os.path.isdir(cache_path):
     os.mkdir(cache_path)
-
-results_pathes = {
-                   'on_cost': os.path.join('.', 'results', '02_plant_optimization', 'optimal_cost', country),
-                   'on_out': os.path.join('.', 'results', '02_plant_optimization', 'optimal_out', country),
-                   'off_cost': os.path.join('.', 'results', '02_plant_optimization', 'optimal_cost', country, 'seaside'),
-                   'off_out': os.path.join('.', 'results', '02_plant_optimization', 'optimal_out', country, 'seaside')
-                  }
-
-results_path = results_pathes[source]
-
+results_path = os.path.join(SAF_directory,'results',script_name)
+if not os.path.isdir(results_path):
+    os.mkdir(results_path)
+if save_operation and not os.path.isdir(os.path.join(results_path,'operation')):
+    operations_path = os.path.join(results_path,'operation')
+    os.mkdir(operations_path)
 eval_points_path = os.path.join(results_path,'eval_points.txt')
 
 # Add a logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(process)d - %(levelname)s: %(message)s','%Y-%m-%d %H:%M:%S')
-file_handler1 = logging.FileHandler(os.path.join(SAF_directory,'logs','02_plant_optimization_persistent.log'))
-file_handler1.setLevel(logging.INFO)
-file_handler1.setFormatter(formatter)
-file_handler2 = logging.FileHandler(os.path.join(SAF_directory,'logs','02_plant_optimization.log'),mode='w')
-file_handler2.setLevel(logging.DEBUG)
-file_handler2.setFormatter(formatter)
-stream_handler = logging.StreamHandler()
-stream_handler.setLevel(logging.ERROR)
-stream_handler.setFormatter(formatter)
-logger.addHandler(file_handler1)
-logger.addHandler(file_handler2)
-logger.addHandler(stream_handler)
-logger.propogate = False
+sys.path.insert(1, os.path.join(SAF_directory,'scripts','03_plant_optimization'))
+from plant_optimization.utilities import create_logger
+logger = create_logger(scratch_path,__name__,__file__)
 
 # Add the file handlers from this script's logger to the plant_optimization.plant_optimizer logger so they are all printed to this script's log
 popt_logger = logging.getLogger('plant_optimization.plant_optimizer')
-popt_logger.addHandler(file_handler1)
-popt_logger.addHandler(file_handler2)
+popt_logger.addHandler(logger.handlers[0])
+popt_logger.addHandler(logger.handlers[1])
 
-def optimize(point, source):
-    site = pop.Site(point, country, source)
-    plant = pop.Plant(site)
-    pop.optimize_plant(plant, eval_points_path, results_path, country, MIPGap=MIPGap,timelimit=timelimit,DisplayInterval=DisplayInterval,silent=silent_optimizer)
+if os.path.isfile(os.path.join(results_path,country+'.csv')):
+    logger.error(f'{country} results already found in results folder. Remove file in order to perform new analysis.')
+    sys.exit()
 
-for point in points:
-    optimize(point, source)
+cores_avail = multiprocessing.cpu_count()
+logger.info(f'{cores_avail} cores available')
+
+results_df = pd.DataFrame()
+points = pop.get_country_points(country)
+for i,point in enumerate(points):
+    # with open(eval_points_path,'r') as fp:
+    #     eval_points_str = fp.read()
+    # if str(point) not in eval_points_str:
+    try:
+        site = pop.Site(point,country)
+        plant = pop.Plant(site)
+        pop.optimize_plant(plant,threads=max_processes,MIPGap=MIPGap,timelimit=timelimit,DisplayInterval=DisplayInterval,silent=silent_optimizer)
+        try:
+            pop.unpack_design_solution(plant, unpack_operation=True)
+        except:
+            logger.error(f'There was a problem unpacking the optimizer model for point({point}) in {country}.')
+            raise Exception('1')
+    except:
+        logger.error(f'Optimization problem for point ({point}) in {country}.')
+        raise Exception('2')
+    try:
+        results_dict = pop.solution_dict(plant)
+        with open(eval_points_path,'a') as fp:
+            fp.write(f'\n{country} point {point}: success.')
+    except pop.plant_optimizer.CoordinateError as e:
+        logger.error(e.__str__())
+        with open(eval_points_path,'a') as fp:
+            fp.write(f'\n{country} point {point}: {e.__str__()}.')
+    except pop.plant_optimizer.OptimizerError as e:
+        logger.error(e.__str__())
+        with open(eval_points_path,'a') as fp:
+            fp.write(f'\n{country} point {point}: {e.__str__()}.')
+    except Exception as e:
+        logger.error(f'There was a problem saving the optimizer results for point({point}) in {country}: {e}')
+        with open(eval_points_path,'a') as fp:
+            fp.write(f'\n{country} point {point}: {e}')
+
+    if save_operation:
+        plant.operation.to_parquet(os.path.join(operations_path,f'{country}_{site.lat}_{site.lon}.parquet.gzip'),compression='gzip')
+
+    results_df = results_df.append(results_dict,ignore_index=True)
+
+results_df = results_dict[['lat','lon','turbine_type','rotor_diameter','rated_turbine_power','wind_turbines',
+'wind_capacity_MW','PV_capacity_MW','electrolyzer_capacity_MW','CO2_capture_tonph','heatpump_capacity_MW',
+'battery_capacity_MWh','H2stor_capacity_MWh','CO2stor_capacity_ton','H2tL_capacity_MW','curtailed_el_MWh',
+'wind_production_MWh','PV_production_MWh','NPV_EUR','CAPEX_EUR','LCOF_MWh','LCOF_liter','runtime']]
+
+results_df.to_csv(os.path.join(results_path,country+'.csv'))
+
+logger.info(f'Script finished after {time.time()-sstime:.1f} seconds.')

@@ -38,7 +38,7 @@ if 'cluster/home' in os.getcwd():
 else:
     scratch_path = os.path.join(SAF_directory,'scratch')
 
-logger = create_logger(SAF_directory,__name__,__file__)
+logger = create_logger(scratch_path,__name__,__file__)
 
 class Site():
     '''
@@ -110,12 +110,12 @@ class Plant:
         if specs_path == None:
             specs_path = os.path.join(SAF_directory,'data','plant_assumptions.xlsx')
         specs = pd.read_excel(specs_path,sheet_name='data',index_col=0)
-        component_names = ['wind','PV','battery','electrolyzer','CO2','H2stor','CO2stor','H2tL']
+        component_names = ['wind','PV','battery','electrolyzer','CO2','H2stor','CO2stor','H2tL','heat']
         for component_name in component_names:
             wind_spcap_class=None
             if component_name == 'wind' and not site == None:
                 wind_spcap_class = site.wind_data['specific_capacity_class'][0]
-            self.__setattr__(component_name,Component(component_name,specs,wind_spcap_class=wind_spcap_class))
+            self.__setattr__(component_name,Component(component_name,specs,wind_class=wind_spcap_class))
 
         self.specs_units={}
         
@@ -130,9 +130,9 @@ class Plant:
             self.wind.__setattr__('rotor_diameter',site.wind_data['rotor_diameter'][0]) # [m]
             self.wind.specs_units['rated_turbine_power'] = 'kW'
             self.wind.specs_units['rotor_diameter'] = 'm'
-        assert self.kerosene_energy_fraction+self.naphtha_energy_fraction+self.diesel_energy_fraction == 1
-        assert self.kerosene_mass_fraction+self.naphtha_mass_fraction+self.diesel_mass_fraction == 1
-        assert self.kerosene_vol_fraction+self.naphtha_vol_fraction+self.diesel_vol_fraction == 1
+        assert self.kerosene_energy_fraction+self.gasoline_energy_fraction+self.diesel_energy_fraction == 1
+        assert self.kerosene_mass_fraction+self.gasoline_mass_fraction+self.diesel_mass_fraction == 1
+        # assert self.kerosene_vol_fraction+self.gasoline_vol_fraction+self.diesel_vol_fraction == 1
         
     def spec_units(self,spec):
         '''Returns the units of the given specification.'''
@@ -180,7 +180,7 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     m = Model("Plant_Design")
     # clean the model
     m.remove(m.getVars())
-    m.remove(m.getVars())
+
     if silent:
         m.setParam('OutputFlag', 0)
 
@@ -193,59 +193,66 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
 
     # Define variables
     ## Units
-    wind_units          = m.addVar(lb=plant.wind.min_units, ub=plant.wind.max_units, vtype=GRB.INTEGER, name="wind_units") # installed turbines
-    PV_units            = m.addVar(lb=plant.PV.min_units, ub=plant.PV.max_units, vtype=GRB.INTEGER, name="PV_units") # installed 1 kW PV units
-    electrolyzer_units  = m.addVar(lb=plant.electrolyzer.min_units, ub=plant.electrolyzer.max_units, vtype=GRB.INTEGER, name="electrolyzer_units") # installed 1 kW (electricity input) electrolyzer units
-    CO2_units           = m.addVar(lb=plant.CO2.min_units, ub=plant.CO2.max_units, vtype=GRB.INTEGER, name="CO2_units") # installed 1 kg/hr (CO2 output) CO2 collector units
-    H2tL_units          = m.addVar(lb=plant.H2tL.min_units, ub=plant.H2tL.max_units, vtype=GRB.INTEGER, name="H2tL_units") # installed 1 kW (jet fuel output) hydrogen-to-liquid units
-    battery_units       = m.addVar(lb=plant.battery.min_units, ub=plant.battery.max_units, vtype=GRB.INTEGER, name="battery_units") # installed 1 kWh battery units
-    H2stor_units        = m.addVar(lb=plant.H2stor.min_units, ub=plant.H2stor.max_units, vtype=GRB.INTEGER, name="H2stor_units") # installed 1 kWh hydrogen tank units
-    CO2stor_units       = m.addVar(lb=plant.CO2stor.min_units, ub=plant.CO2stor.max_units, vtype=GRB.INTEGER, name="CO2stor_units") # installed 1 kg CO2 tank units
+    wind_units               = m.addVar(lb=plant.wind.min_units, ub=plant.wind.max_units, vtype=GRB.INTEGER, name="wind_units") # installed turbines
+    PV_capacity_kW           = m.addVar(lb=plant.PV.min_capacity, ub=plant.PV.max_capacity, vtype=GRB.CONTINUOUS, name="PV_capacity_kW") # installed PV capacity [kW]
+    electrolyzer_capacity_kW = m.addVar(lb=plant.electrolyzer.min_capacity, ub=plant.electrolyzer.max_capacity, vtype=GRB.CONTINUOUS, name="electrolyzer_capacity_kW") # installed (electricity input) electrolyzer capacity [kW]
+    CO2_capacity_kgph        = m.addVar(lb=plant.CO2.min_capacity, ub=plant.CO2.max_capacity, vtype=GRB.CONTINUOUS, name="CO2_capacity_kgph") # installed CO2 collector capacity [kg/hr CO2 output]
+    H2tL_capacity_kW         = m.addVar(lb=plant.H2tL.min_capacity, ub=plant.H2tL.max_capacity, vtype=GRB.CONTINUOUS, name="H2tL_capacity_kW") # installed hydrogen-to-liquid capacity [kW jet fuel output]
+    battery_capacity_kWh     = m.addVar(lb=plant.battery.min_capacity, ub=plant.battery.max_capacity, vtype=GRB.CONTINUOUS, name="battery_capacity_kWh") # installed battery capacity [kWh]
+    H2stor_capacity_kWh      = m.addVar(lb=plant.H2stor.min_capacity, ub=plant.H2stor.max_capacity, vtype=GRB.CONTINUOUS, name="H2stor_capacity_kWh") # installed hydrogen tank capacity [kWh]
+    CO2stor_capacity_kg      = m.addVar(lb=plant.CO2stor.min_capacity, ub=plant.CO2stor.max_capacity, vtype=GRB.CONTINUOUS, name="CO2stor_capacity_kg") # installed CO2 tank capacity [kg CO2]
+    heatpump_capacity_kW     = m.addVar(lb=plant.heat.min_capacity, ub=plant.heat.max_capacity, vtype=GRB.CONTINUOUS, name="heatpump_capacity_kW") # installed heatpump capacity [kW heat output]
 
     ## Storage operation
-    battery_chr_kWh    = m.addVars(time_vec, lb=0, ub=1e6, vtype=GRB.CONTINUOUS, name="battery_chr_kWh") # Battery charge at each hour
-    battery_dis_kWh    = m.addVars(time_vec, lb=0, ub=1e6, vtype=GRB.CONTINUOUS, name="battery_dis_kWh") # Battery discharge  at each hour
-    battery_state_kWh  = m.addVars(time_vec_ext, lb=0, ub=1e6, vtype=GRB.CONTINUOUS, name="battery_state_kWh") # Battery charge state at the beginning of each hour
-    H2stor_chr_kWh     = m.addVars(time_vec, lb=0, ub=1e6, vtype=GRB.CONTINUOUS, name="H2stor_chr_kWh") # Hydrogen tank charge rate at each hour
-    H2stor_dis_kWh     = m.addVars(time_vec, lb=0, ub=1e6, vtype=GRB.CONTINUOUS, name="H2stor_dis_kWh") # Hydrogen tank discharge rate at each hour
-    H2stor_state_kWh   = m.addVars(time_vec_ext, lb=0, ub=1e6, vtype=GRB.CONTINUOUS, name="H2stor_state_kWh") # Hydrogen tank charge state at the beginning of each hour
-    CO2stor_chr_kg     = m.addVars(time_vec, lb=0, ub=1e6, vtype=GRB.CONTINUOUS, name="CO2stor_chr_kg") # CO2 tank charge rate (kg/hr) at each hour
-    CO2stor_dis_kg     = m.addVars(time_vec, lb=0, ub=1e6, vtype=GRB.CONTINUOUS, name="CO2stor_dis_kg") # CO2 tank discharge rate (kg/hr) at each hour
-    CO2stor_state_kg   = m.addVars(time_vec_ext, lb=0, ub=1e6, vtype=GRB.CONTINUOUS, name="CO2stor_state_kg") # CO2 tank charge state (kg) at the beginning of each hour
+    battery_chr_kWh    = m.addVars(time_vec,     lb=0, ub=plant.battery.max_capacity, vtype=GRB.CONTINUOUS, name="battery_chr_kWh") # Battery charge at each hour
+    battery_dis_kWh    = m.addVars(time_vec,     lb=0, ub=plant.battery.max_capacity, vtype=GRB.CONTINUOUS, name="battery_dis_kWh") # Battery discharge  at each hour
+    battery_state_kWh  = m.addVars(time_vec_ext, lb=0, ub=plant.battery.max_capacity, vtype=GRB.CONTINUOUS, name="battery_state_kWh") # Battery charge state at the beginning of each hour
+    H2stor_chr_kWh     = m.addVars(time_vec,     lb=0, ub=plant.H2stor.max_capacity, vtype=GRB.CONTINUOUS, name="H2stor_chr_kWh") # Hydrogen tank charge rate at each hour
+    H2stor_dis_kWh     = m.addVars(time_vec,     lb=0, ub=plant.H2stor.max_capacity, vtype=GRB.CONTINUOUS, name="H2stor_dis_kWh") # Hydrogen tank discharge rate at each hour
+    H2stor_state_kWh   = m.addVars(time_vec_ext, lb=0, ub=plant.H2stor.max_capacity, vtype=GRB.CONTINUOUS, name="H2stor_state_kWh") # Hydrogen tank charge state at the beginning of each hour
+    CO2stor_chr_kg     = m.addVars(time_vec,     lb=0, ub=plant.CO2stor.max_capacity, vtype=GRB.CONTINUOUS, name="CO2stor_chr_kg") # CO2 tank charge rate (kg/hr) at each hour
+    CO2stor_dis_kg     = m.addVars(time_vec,     lb=0, ub=plant.CO2stor.max_capacity, vtype=GRB.CONTINUOUS, name="CO2stor_dis_kg") # CO2 tank discharge rate (kg/hr) at each hour
+    CO2stor_state_kg   = m.addVars(time_vec_ext, lb=0, ub=plant.CO2stor.max_capacity, vtype=GRB.CONTINUOUS, name="CO2stor_state_kg") # CO2 tank charge state (kg) at the beginning of each hour
 
     ## Curtailed electricity
     curtailed_el_kWh   = m.addVars(time_vec, lb=0, ub=100000, vtype=GRB.CONTINUOUS, name="curtailed_el_kWh") # Curtailed electricity production at each hour
 
-    ## Electricity consumption for H2 production 
+    ## Electricity consumption
     H2_el_kWh          = m.addVars(time_vec, lb=0, ub=100000, vtype=GRB.CONTINUOUS, name="H2_el_kWh") # Electricity consumed for H2 production at each hour
     CO2_el_kWh         = m.addVars(time_vec, lb=0, ub=100000, vtype=GRB.CONTINUOUS, name="CO2_el_kWh") # Electricity consumed for CO2 production at each hour
+    H2tL_el_kWh        = m.addVars(time_vec, lb=0, ub=100000, vtype=GRB.CONTINUOUS, name="H2tL_el_kWh") # Electricity consumed for fuel production at each hour
+    heat_el_kWh        = m.addVars(time_vec, lb=0, ub=100000, vtype=GRB.CONTINUOUS, name="heat_el_kWh") # Electricity consumed for electric boiler heat at each hour
+    
     m.update()
 
     wind_production_kWh = plant.site.wind_data['kWh']*wind_units # [kWh]
-    PV_production_kWh   = plant.site.PV_data['Wh']*PV_units/1e3 # [kWh]
+    PV_production_kWh   = plant.site.PV_data['Wh']*PV_capacity_kW/1e3 # [kWh] note: PV_data given in Wh/kW installed
 
-    # el_production_kWh   = [wind_production_kWh[i] + PV_production_kWh[i] - curtailed_el_kWh[i]
-    #                        + battery_dis_kWh[i] - battery_chr_kWh[i] for i in time_vec] # [kWh electricity produced per hour]
     H2_production_kWh   = [H2_el_kWh[i]*plant.electrolyzer.efficiency for i in time_vec] # [kWh hydrogen produced per hour]
     H2_consumption_kWh  = [H2_production_kWh[i] + H2stor_dis_kWh[i] - H2stor_chr_kWh[i] for i in time_vec] # [kWh hydrogen consumed per hour]
-    CO2_production_kg   = [CO2_el_kWh[i]/plant.CO2.el_efficiency*1e3 for i in time_vec] # [kg CO2 produced per hour]
+    
+    fuel_production_kWh = [x*plant.H2tL.chem_efficiency*plant.kerosene_energy_fraction for x in H2_consumption_kWh] # [kWh *jet* fuel per produced hour]
+    
+    CO2_production_kg   = [CO2_el_kWh[i]/plant.CO2.el_efficiency for i in time_vec] # [kg CO2 produced per hour]
     CO2_consumption_kg  = [CO2_production_kg[i] + CO2stor_dis_kg[i] - CO2stor_chr_kg[i] for i in time_vec] # [tCO2 consumed per hour]
-    fuel_production_kWh = [x*plant.H2tL.efficiency*plant.kerosene_energy_fraction for x in H2_consumption_kWh] # [kWh *jet* fuel per produced hour]
 
 
     # Define constraints
-    # electricity use constraint
+    # electricity balance
     for t in time_vec:
         m.addConstr(curtailed_el_kWh[t] <= wind_production_kWh[t] + PV_production_kWh[t])
-        m.addConstr(battery_chr_kWh[t] <= wind_production_kWh[t] + PV_production_kWh[t] - curtailed_el_kWh[t])
-        # m.addConstr(H2_el_kWh[t] <= el_production_kWh[t])
-        m.addConstr(wind_production_kWh[t] + PV_production_kWh[t] + battery_dis_kWh[t] == curtailed_el_kWh[t] + battery_chr_kWh[t] + H2_el_kWh[t] + CO2_el_kWh[t])
+        # m.addConstr(battery_chr_kWh[t] <= wind_production_kWh[t] + PV_production_kWh[t] - curtailed_el_kWh[t])
+        m.addConstr(wind_production_kWh[t] + PV_production_kWh[t] + battery_dis_kWh[t] == curtailed_el_kWh[t] + battery_chr_kWh[t] + H2_el_kWh[t] + CO2_el_kWh[t] + H2tL_el_kWh[t] + heat_el_kWh[t])
+
+    # heat balance
+    for t in time_vec:
+        m.addConstr(heat_el_kWh[t]*plant.heat.el_efficiency + fuel_production_kWh[t]*plant.H2tL.heat_output >=  CO2_production_kg[t]/plant.CO2.th_efficiency)
 
     # storage constraints: 
     ## storage level constraint
-    m.addConstrs(battery_state_kWh[i] <= battery_units*plant.battery.unit_capacity for i in time_vec_ext)
-    m.addConstrs(H2stor_state_kWh[i] <= H2stor_units*plant.H2stor.unit_capacity for i in time_vec_ext)
-    m.addConstrs(CO2stor_state_kg[i] <= CO2stor_units*plant.CO2.unit_capacity for i in time_vec_ext)
+    m.addConstrs(battery_state_kWh[i] <= battery_capacity_kWh for i in time_vec_ext)
+    m.addConstrs(H2stor_state_kWh[i] <= H2stor_capacity_kWh for i in time_vec_ext)
+    m.addConstrs(CO2stor_state_kg[i] <= CO2stor_capacity_kg for i in time_vec_ext)
     ## initial/final storage level constraint
     m.addConstr(battery_state_kWh[0] == battery_state_kWh[time_vec_ext[-1]])
     m.addConstr(H2stor_state_kWh[0] == H2stor_state_kWh[time_vec_ext[-1]])
@@ -255,23 +262,27 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
         m.addConstr(H2stor_state_kWh[t+1] == H2stor_state_kWh[t] + H2stor_chr_kWh[t] - H2stor_dis_kWh[t])
         m.addConstr(CO2stor_state_kg[t+1] == CO2stor_state_kg[t] + CO2stor_chr_kg[t] - CO2stor_dis_kg[t])
         m.addConstr(battery_state_kWh[t+1] == battery_state_kWh[t] + battery_chr_kWh[t]*plant.battery.cycle_efficiency - battery_dis_kWh[t]/plant.battery.cycle_efficiency)
-        m.addConstr(battery_chr_kWh[t] <= battery_units*plant.battery.unit_capacity*plant.battery.c_rate) # Charge rate constraints
-        m.addConstr(battery_dis_kWh[t] <= battery_units*plant.battery.unit_capacity*plant.battery.c_rate) # Disharge rate constraints
+        m.addConstr(battery_chr_kWh[t] <= battery_capacity_kWh*plant.battery.c_rate) # Charge rate constraints
+        m.addConstr(battery_dis_kWh[t] <= battery_capacity_kWh*plant.battery.c_rate) # Disharge rate constraints
 
     # electrolyzer operation input constraint
     for t in time_vec:
-        m.addConstr(H2_el_kWh[t] <= electrolyzer_units*plant.electrolyzer.unit_capacity) # each electrolyzer_units can accept 1 kW of electricity input
-        m.addConstr(H2_el_kWh[t] >= electrolyzer_units*plant.electrolyzer.unit_capacity*plant.electrolyzer.baseload)
+        m.addConstr(H2_el_kWh[t] <= electrolyzer_capacity_kW) # electrolyzer_capacity_kW constrains electricity input
+        m.addConstr(H2_el_kWh[t] >= electrolyzer_capacity_kW*plant.electrolyzer.baseload)
     
     # CO2 capture operation input constraint
     for t in time_vec:
-        m.addConstr(CO2_production_kg[t] <= CO2_units*plant.CO2.unit_capacity) # each CO2 capture unit can output 1 kg of CO2 per hour
+        m.addConstr(CO2_production_kg[t] <= CO2_capacity_kgph) # CO2_capacity_kgph constrains output of CO2
         # Add a baseload constraint?
+    
+    # electric boiler operation input constraint
+    for t in time_vec:
+        m.addConstr(heat_el_kWh[t] <= heatpump_capacity_kW) # electrolyzer_capacity_kW constrains electricity input
 
     # H2tL operation constraint
     for t in time_vec:
-        m.addConstr(H2_consumption_kWh[t]*plant.H2tL.efficiency*plant.kerosene_energy_fraction <= H2tL_units*plant.H2tL.unit_capacity)
-        m.addConstr(H2_consumption_kWh[t]*plant.H2tL.efficiency*plant.kerosene_energy_fraction >= H2tL_units*plant.H2tL.unit_capacity*plant.H2tL.baseload)
+        m.addConstr(H2_consumption_kWh[t]*plant.H2tL.chem_efficiency*plant.kerosene_energy_fraction <= H2tL_capacity_kW)
+        m.addConstr(H2_consumption_kWh[t]*plant.H2tL.chem_efficiency*plant.kerosene_energy_fraction >= H2tL_capacity_kW*plant.H2tL.baseload)
         m.addConstr(CO2_consumption_kg[t] == H2_consumption_kWh[t]*plant.H2tL.required_CO2) # Ratio of CO2 to H2 as input to process
 
     # fuel production constraint
@@ -281,14 +292,15 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     # Define objective function
     # ----- CHECK IF WIND CAPACITY IS IN RIGHT UNITS RELATIVE TO CAPEX!!! -------
     lifetime_wind_cost         = costs_NPV(capex=plant.wind.CAPEX,opex=plant.wind.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=wind_units*plant.wind.rated_turbine_power) # Is capacity in the right units relative to CAPEX????
-    lifetime_PV_cost           = costs_NPV(capex=plant.PV.CAPEX,opex=plant.PV.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=PV_units*plant.PV.unit_capacity)
-    lifetime_electrolyzer_cost = costs_NPV(capex=plant.electrolyzer.CAPEX,opex=plant.electrolyzer.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=electrolyzer_units*plant.electrolyzer.unit_capacity)
-    lifetime_CO2_cost          = costs_NPV(capex=plant.CO2.CAPEX,opex=plant.CO2.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=CO2_units*plant.CO2.unit_capacity/1e3*8760) # Capacity converted to tons/year to match CAPEX units
-    lifetime_battery_cost      = costs_NPV(capex=plant.battery.CAPEX,opex=plant.battery.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=battery_units*plant.battery.unit_capacity)
-    lifetime_H2stor_cost       = costs_NPV(capex=plant.H2stor.CAPEX,opex=plant.H2stor.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=H2stor_units*plant.H2stor.unit_capacity)
-    lifetime_CO2stor_cost      = costs_NPV(capex=plant.CO2stor.CAPEX,opex=plant.CO2stor.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=CO2stor_units*plant.CO2stor.unit_capacity/1e3) # Capacity converted to tons to match CAPEX units
-    lifetime_H2tL_cost         = costs_NPV(capex=plant.H2tL.CAPEX,opex=plant.H2tL.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=H2tL_units*plant.H2tL.unit_capacity)
-    lifetime_cost              = lifetime_wind_cost + lifetime_PV_cost + lifetime_electrolyzer_cost + lifetime_CO2_cost + lifetime_battery_cost + lifetime_H2stor_cost + lifetime_CO2stor_cost + lifetime_H2tL_cost # EUR
+    lifetime_PV_cost           = costs_NPV(capex=plant.PV.CAPEX,opex=plant.PV.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=PV_capacity_kW)
+    lifetime_electrolyzer_cost = costs_NPV(capex=plant.electrolyzer.CAPEX,opex=plant.electrolyzer.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=electrolyzer_capacity_kW)
+    lifetime_CO2_cost          = costs_NPV(capex=plant.CO2.CAPEX,opex=plant.CO2.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=CO2_capacity_kgph/1e3*8760) # Capacity converted to tons/year to match CAPEX units
+    lifetime_battery_cost      = costs_NPV(capex=plant.battery.CAPEX,opex=plant.battery.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=battery_capacity_kWh)
+    lifetime_H2stor_cost       = costs_NPV(capex=plant.H2stor.CAPEX,opex=plant.H2stor.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=H2stor_capacity_kWh)
+    lifetime_CO2stor_cost      = costs_NPV(capex=plant.CO2stor.CAPEX,opex=plant.CO2stor.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=CO2stor_capacity_kg/1e3) # Capacity converted to tons to match CAPEX units
+    lifetime_H2tL_cost         = costs_NPV(capex=plant.H2tL.CAPEX,opex=plant.H2tL.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=H2tL_capacity_kW)
+    lifetime_heat_cost         = costs_NPV(capex=plant.heat.CAPEX, opex=plant.heat.OPEX, discount_rate=plant.discount_rate,lifetime=plant.lifetime, capacity=heatpump_capacity_kW)
+    lifetime_cost              = lifetime_wind_cost + lifetime_PV_cost + lifetime_electrolyzer_cost + lifetime_CO2_cost + lifetime_battery_cost + lifetime_H2stor_cost + lifetime_CO2stor_cost + lifetime_H2tL_cost + lifetime_heat_cost# EUR
 
     # Set objective function
     m.setObjective(lifetime_cost,sense=GRB.MINIMIZE)
@@ -318,24 +330,28 @@ def unpack_design_solution(plant,unpack_operation=False):
     '''Parses the results of the optimized plant and save the values to attributes of the given plant object.
     Set unpack_operation to True in order to unpack the hourly operation of applicable components (e.g. wind, PV, CO2, battery)
     '''
-    plant.wind_units         = plant.m.getVarByName('wind_units').x
-    plant.PV_units           = plant.m.getVarByName('PV_units').x
-    plant.electrolyzer_units = plant.m.getVarByName('electrolyzer_units').x
-    plant.CO2_units          = plant.m.getVarByName('CO2_units').x
-    plant.battery_units      = plant.m.getVarByName('battery_units').x
-    plant.H2stor_units       = plant.m.getVarByName('H2stor_units').x
-    plant.CO2stor_units      = plant.m.getVarByName('CO2stor_units').x
-    plant.H2tL_units         = plant.m.getVarByName('H2tL_units').x
-    plant.NPV                = plant.m.ObjVal
+    plant.wind_units               = plant.m.getVarByName('wind_units').x
+    plant.PV_capacity_kW           = plant.m.getVarByName('PV_capacity_kW').x
+    plant.electrolyzer_capacity_kW = plant.m.getVarByName('electrolyzer_capacity_kW').x
+    plant.CO2_capacity_kgph        = plant.m.getVarByName('CO2_capacity_kgph').x
+    plant.battery_capacity_kWh     = plant.m.getVarByName('battery_capacity_kWh').x
+    plant.H2stor_capacity_kWh      = plant.m.getVarByName('H2stor_capacity_kWh').x
+    plant.CO2stor_capacity_kg      = plant.m.getVarByName('CO2stor_capacity_kg').x
+    plant.H2tL_capacity_kW         = plant.m.getVarByName('H2tL_capacity_kW').x
+    plant.heatpump_capacity_kW     = plant.m.getVarByName('heatpump_capacity_kW').x
+    plant.NPV                      = plant.m.ObjVal
     CAPEXes = {}
-    for component in ['PV','battery','electrolyzer','H2stor','H2tL']:
-        CAPEXes[component] = plant.__getattribute__(component+'_units') * plant.__getattribute__(component).unit_capacity * plant.__getattribute__(component).CAPEX
+    component_caps = {'PV':'PV_capacity_kW','electrolyzer':'electrolyzer_capacity_kW',
+    'CO2':'CO2_capacity_kgph','battery':'battery_capacity_kWh','H2stor':'H2stor_capacity_kWh','CO2stor':'CO2stor_capacity_kg',
+    'H2tL':'H2tL_capacity_kW','heat':'heatpump_capacity_kW'}
+    for component,capacity in component_caps.items():
+        CAPEXes[component] = plant.__getattribute__(capacity) * plant.__getattribute__(component).CAPEX
     CAPEXes['wind'] = plant.wind.rated_turbine_power * plant.wind_units * plant.wind.CAPEX
-    CAPEXes['CO2'] = plant.CO2.unit_capacity/1e3*8760 * plant.CO2_units * plant.CO2.CAPEX
-    CAPEXes['CO2'] = plant.CO2stor.unit_capacity/1e3 * plant.CO2stor_units * plant.CO2stor.CAPEX
+    CAPEXes['CO2'] = plant.CO2_capacity_kgph/1e3 * plant.CO2.CAPEX
+    CAPEXes['CO2stor'] = plant.CO2stor_capacity_kg/1e3 * plant.CO2stor.CAPEX
     plant.CAPEXes = CAPEXes
     plant.CAPEX              = np.sum(list(CAPEXes.values()))
-    plant.LCOF_MWh           = plant.NPV/(plant.required_fuel*1e3*plant.lifetime)
+    plant.LCOF_MWh           = plant.NPV/(sum(plant.required_fuel*1e3/(1+plant.discount_rate)**n for n in np.arange(plant.lifetime+1)))
     plant.LCOF_liter         = plant.LCOF_MWh/3.6e9*plant.kerosene_LHV*0.8
     if unpack_operation:
         unpack_operation_solution(plant)
@@ -346,89 +362,65 @@ def unpack_operation_solution(plant):
     
     The results are also saved to the attribute named "operation" as a DatFrame for easy viewing.
     '''
-    plant.wind_production_MWh = plant.site.wind_data['kWh']*plant.m.getVarByName('wind_units').x/1e3 # [MWh]
-    plant.PV_production_MWh = plant.site.PV_data['Wh']*plant.m.getVarByName('PV_units').x/1e6 # [MWh]
+    plant.wind_production_kWh = plant.site.wind_data['kWh']*plant.m.getVarByName('wind_units').x # [kWh]
+    plant.PV_production_kWh = plant.site.PV_data['Wh']*plant.m.getVarByName('PV_capacity_kW').x/1e3 # [kWh]
     
+    op_dict = {'wind_production_kWh':list(plant.wind_production_kWh),'PV_production_kWh':list(plant.PV_production_kWh)}
+
     time_vec = np.arange(0, plant.site.wind_data.index.nunique()) # hours of the year
-    time_vec_ext = np.arange(0, plant.site.wind_data.index.nunique()+1) # for the final storage states
     
-
-    plant.battery_chr_MWh   = []
-    plant.battery_dis_MWh   = []
-    plant.battery_state_MWh = []
-    plant.H2stor_chr_MWh    = []
-    plant.H2stor_dis_MWh    = []
-    plant.H2stor_state_MWh  = []
-    plant.CO2stor_chr_ton    = []
-    plant.CO2stor_dis_ton    = []
-    plant.CO2stor_state_ton  = []
-    plant.curtailed_el_MWh  = []
-    plant.H2_el_MWh         = []
-    plant.CO2_el_MWh         = []
-    for entry in plant.m.getVars():
-        var_name = entry.varname
-        var_value = entry.x
-        if 'battery_chr_kWh' in var_name:
-            plant.battery_chr_MWh.append(var_value/1e3)
-        elif 'battery_dis_kWh' in var_name:
-            plant.battery_dis_MWh.append(var_value/1e3)
-        elif 'battery_state_kWh' in var_name:
-            plant.battery_state_MWh.append(var_value/1e3)
-        elif 'curtailed_el_kWh' in var_name:
-            plant.curtailed_el_MWh.append(var_value/1e3)
-        elif 'H2_el_kWh' in var_name:
-            plant.H2_el_MWh.append(var_value/1e3)
-        elif 'CO2_el_kWh' in var_name:
-            plant.CO2_el_MWh.append(var_value/1e3)
-        elif 'H2stor_chr_kWh' in var_name:
-            plant.H2stor_chr_MWh.append(var_value/1e3)
-        elif 'H2stor_dis_kWh' in var_name:
-            plant.H2stor_dis_MWh.append(var_value/1e3)
-        elif 'H2stor_state_kWh' in var_name:
-            plant.H2stor_state_MWh.append(var_value/1e3)
-        elif 'CO2stor_chr_kg' in var_name:
-            plant.CO2stor_chr_ton.append(var_value/1e3)
-        elif 'CO2stor_dis_kg' in var_name:
-            plant.CO2stor_dis_ton.append(var_value/1e3)
-        elif 'CO2stor_state_kg' in var_name:
-            plant.CO2stor_state_ton.append(var_value/1e3)
+    operation_names = ['battery_chr_kWh','battery_dis_kWh','battery_state_kWh','H2stor_chr_kWh',
+    'H2stor_dis_kWh','H2stor_state_kWh','CO2stor_chr_kg','CO2stor_dis_kg','CO2stor_state_kg',
+    'curtailed_el_kWh','H2_el_kWh','CO2_el_kWh','H2_el_kWh','CO2_el_kWh','H2tL_el_kWh','heat_el_kWh']
+    
+    for operation_name in operation_names:
+        plant.__setattr__(operation_name,[])
+        for t in time_vec:
+            plant.__getattribute__(operation_name).append(plant.m.getVarByName(f'{operation_name}[{t}]').x) 
+        op_dict[operation_name] = plant.__getattribute__(operation_name)
             
-    plant.battery_flow_MWh = np.subtract(plant.battery_chr_MWh,plant.battery_dis_MWh)
-    plant.H2stor_flow_MWh = np.subtract(plant.H2stor_chr_MWh,plant.H2stor_dis_MWh)
-    plant.CO2stor_flow_ton = np.subtract(plant.CO2stor_chr_ton,plant.CO2stor_dis_ton)
+    plant.battery_flow_kWh = np.subtract(plant.battery_chr_kWh,plant.battery_dis_kWh)
+    plant.H2stor_flow_kWh = np.subtract(plant.H2stor_chr_kWh,plant.H2stor_dis_kWh)
+    plant.CO2stor_flow_kg = np.subtract(plant.CO2stor_chr_kg,plant.CO2stor_dis_kg)
 
-    # plant.el_production_MWh = [plant.wind_production_MWh[i] + plant.PV_production_MWh[i] - plant.curtailed_el_MWh[i]
-    #                        + plant.battery_dis_MWh[i] - plant.battery_chr_MWh[i] for i in time_vec] # [MWh electricity produced per hour]
+    plant.H2_production_kWh   = [plant.H2_el_kWh[i]*plant.electrolyzer.efficiency for i in time_vec] # [kWh hydrogen produced per hour]
+    plant.H2_consumption_kWh  = [plant.H2_production_kWh[i] + plant.H2stor_dis_kWh[i] - plant.H2stor_chr_kWh[i] for i in time_vec] # [kWh hydrogen consumed per hour]
+    plant.CO2_production_kg   = [plant.CO2_el_kWh[i]*1e3/plant.CO2.el_efficiency for i in time_vec] # [tCO2 produced per hour]
+    plant.CO2_consumption_kg  = [plant.CO2_production_kg[i] + plant.CO2stor_dis_kg[i] - plant.CO2stor_chr_kg[i] for i in time_vec] # [tCO2 consumed per hour]
+    plant.fuel_production_kWh = [x*plant.H2tL.chem_efficiency*plant.kerosene_energy_fraction for x in plant.H2_consumption_kWh] # [kWh *jet* fuel per produced hour]
 
-    plant.H2_production_MWh   = [plant.H2_el_MWh[i]*plant.electrolyzer.efficiency for i in time_vec] # [MWh hydrogen produced per hour]
-    plant.H2_consumption_MWh  = [plant.H2_production_MWh[i] + plant.H2stor_dis_MWh[i] - plant.H2stor_chr_MWh[i] for i in time_vec] # [MWh hydrogen consumed per hour]
-    plant.CO2_production_ton   = [plant.CO2_el_MWh[i]*1e3/plant.CO2.el_efficiency for i in time_vec] # [tCO2 produced per hour]
-    plant.CO2_consumption_ton  = [plant.CO2_production_ton[i] + plant.CO2stor_dis_ton[i] - plant.CO2stor_chr_ton[i] for i in time_vec] # [tCO2 consumed per hour]
-    plant.fuel_production_MWh = [x*plant.H2tL.efficiency*plant.kerosene_energy_fraction for x in plant.H2_consumption_MWh] # [MWh *jet* fuel per produced hour]
-    
-    plant.operation = pd.DataFrame({
-                                    'wind_production_MWh' : list(plant.wind_production_MWh),
-                                    'PV_production_MWh' : list(plant.PV_production_MWh),
-                                    'curtailed_el_MWh' : plant.curtailed_el_MWh,
-                                    'battery_flow_MWh' : plant.battery_flow_MWh,
-                                    'battery_chr_MWh' : plant.battery_chr_MWh,
-                                    'battery_dis_MWh' : plant.battery_dis_MWh,
-                                    'battery_state_MWh' : plant.battery_state_MWh[:-1],
-                                    # 'el_production_MWh' : plant.el_production_MWh,
-                                    'H2_el_MWh' : plant.H2_el_MWh,
-                                    'CO2_el_MWh' : plant.CO2_el_MWh,
-                                    'H2_production_kWh' : plant.H2_production_MWh,
-                                    'H2stor_flow_MWh' : plant.H2stor_flow_MWh,
-                                    'H2stor_chr_MWh' : plant.H2stor_chr_MWh,
-                                    'H2stor_dis_MWh' : plant.H2stor_dis_MWh,
-                                    'H2stor_state_MWh' : plant.H2stor_state_MWh[:-1],
-                                    'CO2_consumption_kg' : plant.CO2_consumption_ton,
-                                    'CO2_production_ton' : plant.CO2_production_ton,
-                                    'CO2stor_flow_ton' : plant.CO2stor_flow_ton,
-                                    'CO2stor_chr_ton' : plant.CO2stor_chr_ton,
-                                    'CO2stor_dis_ton' : plant.CO2stor_dis_ton,
-                                    'CO2stor_state_ton' : plant.CO2stor_state_ton[:-1],
-                                    'CO2_consumption_kg' : plant.CO2_consumption_ton,
-                                    'fuel_production_MWh' : plant.fuel_production_MWh,
-                                   },index=plant.site.wind_data.index)
+    for x in ['battery_flow_kWh','H2_production_kWh','CO2_consumption_kg','CO2_production_kg','CO2stor_flow_kg','CO2_consumption_kg','fuel_production_kWh']:
+        op_dict[x] = plant.__getattribute__(x)
 
+    plant.operation = pd.DataFrame(op_dict,index=plant.site.wind_data.index)
+    plant.test = True
+
+def solution_dict(plant):
+    results_dict = {}
+
+    results_dict['lat'] = plant.site.lat
+    results_dict['lon'] = plant.site.lon
+    results_dict['wind_capacity_MW'] = plant.wind_units * plant.wind.rated_turbine_power / 1e3
+    results_dict['wind_turbines'] = plant.wind_units
+    results_dict['rated_turbine_power'] = plant.wind.rated_turbine_power
+    results_dict['rotor_diameter'] = plant.wind.rotor_diameter
+    results_dict['turbine_type'] = plant.wind.turbine_type
+    results_dict['PV_capacity_MW'] = plant.PV_capacity_kW / 1e3
+    results_dict['electrolyzer_capacity_MW'] = plant.electrolyzer_capacity_kW / 1e3
+    results_dict['CO2_capture_tonph'] = plant.CO2_capacity_kgph / 1e3  # tons of CO2 per hour
+    results_dict['heatpump_capacity_MW'] = plant.heatpump_capacity_kW / 1e3
+    results_dict['battery_capacity_MWh'] = plant.battery_capacity_kWh / 1e3
+    results_dict['H2stor_capacity_MWh'] = plant.H2stor_capacity_kWh  / 1e3
+    results_dict['CO2stor_capacity_ton'] = plant.CO2stor_capacity_kg / 1e3
+    results_dict['H2tL_capacity_MW'] = plant.H2tL_capacity_kW  / 1e3
+    results_dict['NPV_EUR'] = plant.NPV
+    results_dict['CAPEX_EUR'] = plant.CAPEX
+    results_dict['LCOF_MWh'] = plant.LCOF_MWh
+    results_dict['LCOF_liter'] = plant.LCOF_liter
+    results_dict['curtailed_el_MWh'] = plant.operation.curtailed_el_kWh.sum() / 1e3
+    results_dict['wind_production_MWh'] = plant.operation.wind_production_kWh.sum() / 1e3
+    results_dict['PV_production_MWh'] = plant.operation.PV_production_kWh.sum() / 1e3
+    #results_dict['MIPGap'] = plant.m.MIPGap
+    results_dict['runtime'] = plant.m.runtime
+
+    return results_dict
