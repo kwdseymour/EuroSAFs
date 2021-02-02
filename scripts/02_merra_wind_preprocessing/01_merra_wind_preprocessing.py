@@ -69,15 +69,20 @@ SAF_directory = args.SAF_directory
 optimization_metric = args.optimization_metric
 
 # Define path to logs, cache, and results folders. Create directories if they don't already exist
-logs_path = os.path.join(SAF_directory,'logs')
+logs_path = os.path.join(SAF_directory,'scratch','logs')
 if not os.path.isdir(logs_path):
     os.mkdir(logs_path)
-cache_path = os.path.join(SAF_directory,'cache')
+cache_path = os.path.join(SAF_directory,'scratch','cache')
 if not os.path.isdir(cache_path):
     os.mkdir(cache_path)
 results_path = os.path.join(SAF_directory,'results',script_name)
 if not os.path.isdir(results_path):
     os.mkdir(results_path)
+if 'cluster/home' in os.getcwd():
+    # Uses the $SCRATCH environment variable to locate the scratch file if this module is run within Euler
+    scratch_path = os.environ['SCRATCH']
+else:
+    scratch_path = os.path.join(SAF_directory,'scratch')
 
 # Import the Component class, which extracts plant component cost and efficiency data
 sys.path.insert(1, os.path.join(SAF_directory,'scripts','03_plant_optimization'))
@@ -85,7 +90,7 @@ from plant_optimization.plant_optimizer import Component,costs_NPV
 
 # Add a logger
 from plant_optimization.utilities import create_logger
-logger = create_logger(SAF_directory,__name__,__file__)
+logger = create_logger(scratch_path,__name__,__file__)
 
 class Turbine(wpl.wind_turbine.WindTurbine):
     '''Child class of the windpowerlib.wind_turbine.WindTurbine class.
@@ -119,6 +124,7 @@ class Turbine(wpl.wind_turbine.WindTurbine):
         if hub_height==None:
             # Assigns a hub height to align most closely with the JRC representative types
             self.rep_specific_capacity = min(self.rep_specific_capacities, key=lambda x:abs(x-self.specific_capacity)) # Selects the JRC representative specific capacity closest to that of this turbine
+            self.specific_capacity_class = self.specific_capacity_classes[self.rep_specific_capacity]
             self.rep_hub_height = self.rep_hub_heights[self.rep_specific_capacity] # Selects the representative hub height for the JRC wind turbine class closets to this turbine's specific capacity
             self.jrc_hub_height = min(self.hub_heights, key=lambda x:abs(x-self.rep_hub_height)) # [m] Selects the hub height for this model that is closest to the representative hub height found above
         if self.custom_power_curve:
@@ -134,7 +140,7 @@ class Turbine(wpl.wind_turbine.WindTurbine):
         if onshore:
             if classifications.loc[classifications.turbine_type==turbine_type,'onshore'].iloc[0] != 1:
                 raise Exception(f'This wind turbine model ({turbine_type}) does not have an onshore variant according to the classification.csv file.')
-            self.costs = Component('wind',specs=component_specs,wind_class=self.specific_capacity_classes[self.rep_specific_capacity])   
+            self.costs = Component('wind',specs=component_specs,wind_class=self.specific_capacity_class)   
         else:
             if classifications.loc[classifications.turbine_type==turbine_type,'offshore'].iloc[0] != 1:
                 raise Exception(f'This wind turbine model ({turbine_type}) does not have an offshore variant according to the classification.csv file.')
@@ -376,7 +382,7 @@ def compute_power_output(df,offshore_points=None):
         df.loc[idx[coords],'turbine_type'] = turbine.turbine_type
         df.loc[idx[coords],'rated_power_MW'] = turbine.nominal_power/1e6 # [MW]
         df.loc[idx[coords],'rotor_diameter'] = turbine.rotor_diameter # [m]
-        df.loc[idx[coords],'specific_capacity_class'] = turbine.rep_specific_capacity
+        df.loc[idx[coords],'specific_capacity_class'] = turbine.specific_capacity_class
         df.loc[idx[coords],'rep_hub_height'] = turbine.jrc_hub_height # [m]
         df.loc[idx[coords],'hub_height'] = turbine.hub_height # [m]
 
