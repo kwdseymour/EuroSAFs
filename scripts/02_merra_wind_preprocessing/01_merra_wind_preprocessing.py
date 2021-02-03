@@ -1,5 +1,7 @@
 #bsub -n 32 -R "rusage[mem=4096]" -oo $HOME/SAFlogistics/results/01_merra_wind_preprocessing 'python SAFlogistics/scripts/01_merra_wind_preprocessing/01_merra_wind_preprocessing.py -d $HOME/SAFlogistics -p32'
 
+#python scripts/02_merra_wind_preprocessing/01_merra_wind_preprocessing.py -d .
+
 '''
 This script opens the downloaded MERRA wind netCDF4 files for each country, preprocesses them, and saves the results to parquet files.
 In the preprocessing step, the hourly wind speed is calculated and, with the windpowerlib library, a wind turbine is selected to provide the lowest LCOE for each evaluation location.
@@ -321,7 +323,10 @@ def assign_turbine_model(df,optimization_metric='lcoe',shore_designation='onshor
     '''
     turbine_spacing = 5 # meters of spacing per meter of rotor diameter [Bryer, 2012]
     winning_turbine = None
-    winning_value = 0
+    if optimization_metric.lower() == 'lcoe':
+        winning_value = 100
+    else:
+        winning_value = 0
     winning_output = None
     for turbine in turbines[shore_designation].values():
         feasible_model = turbine.assign_site(df.v_50m,df.hellmann)
