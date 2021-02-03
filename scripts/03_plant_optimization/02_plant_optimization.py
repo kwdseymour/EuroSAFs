@@ -100,9 +100,10 @@ if not os.path.isdir(cache_path):
 results_path = os.path.join(SAF_directory,'results',script_name)
 if not os.path.isdir(results_path):
     os.mkdir(results_path)
-if save_operation and not os.path.isdir(os.path.join(results_path,'operation')):
+if save_operation:
     operations_path = os.path.join(results_path,'operation')
-    os.mkdir(operations_path)
+    if not os.path.isdir(operations_path):
+        os.mkdir(operations_path)
 eval_points_path = os.path.join(results_path,'eval_points.txt')
 
 # Add a logger
@@ -121,6 +122,9 @@ if os.path.isfile(os.path.join(results_path,country+'.csv')):
 
 cores_avail = multiprocessing.cpu_count()
 logger.info(f'{cores_avail} cores available')
+if max_processes == None:
+    max_processes = cores_avail - 1
+    logger.info(f'Max processes parameter not set. Using {max_processes} cores.')
 
 results_df = pd.DataFrame()
 points = pop.get_country_points(country)
@@ -162,7 +166,7 @@ for i,point in enumerate(points):
 
     results_df = results_df.append(results_dict,ignore_index=True)
 
-results_df = results_dict[['lat','lon','turbine_type','rotor_diameter','rated_turbine_power','wind_turbines',
+results_df = results_df[['lat','lon','turbine_type','rotor_diameter','rated_turbine_power','wind_turbines',
 'wind_capacity_MW','PV_capacity_MW','electrolyzer_capacity_MW','CO2_capture_tonph','heatpump_capacity_MW',
 'battery_capacity_MWh','H2stor_capacity_MWh','CO2stor_capacity_ton','H2tL_capacity_MW','curtailed_el_MWh',
 'wind_production_MWh','PV_production_MWh','NPV_EUR','CAPEX_EUR','LCOF_MWh','LCOF_liter','runtime']]
