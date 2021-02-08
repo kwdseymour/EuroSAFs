@@ -1,7 +1,7 @@
 #!~/anaconda3/envs/GIS/bin/python
 # coding: utf-8
 
-# python scripts/02_plant_optimization/02_plant_optimization.py -d . -c Austria -m 0.01 -v
+# python scripts/03_plant_optimization/02_plant_optimization.py -d . -c Austria -m 0.01 -v
 
 '''
 This script runs the plant optimizer for every location in the given country.
@@ -38,6 +38,7 @@ import time
 import datetime
 import logging
 import pandas as pd
+import numpy as np
 import multiprocessing
 import plant_optimization as pop
 
@@ -55,6 +56,10 @@ parser.add_argument('-d','--SAF_directory',
 parser.add_argument('-p','--max_processes',
     help='Controls the number of threads to apply to parallel algorithms (of the optimizer)',
     default=None)
+parser.add_argument('-b','--bin_number',
+    help='Chooses which coordinates from the country to evaluate',
+    default=1,
+    type=int)
 parser.add_argument('-t','--time_limit',
     help='Sets the time limit of the optimizer (seconds)',
     default=2000,
@@ -82,6 +87,8 @@ DisplayInterval = args.DisplayInterval
 silent_optimizer = not(args.verbose_optimizer)
 save_operation = args.save_operation
 timelimit = args.time_limit
+bin_number = args.bin_number
+bin_size = 100
 country = args.country
 max_processes = args.max_processes
 SAF_directory = args.SAF_directory
@@ -128,6 +135,9 @@ if max_processes == None:
 
 results_df = pd.DataFrame()
 points = pop.get_country_points(country)
+bin_count = int(np.ceil(len(points)/bin_size))
+bin_string = f'_{bin_number}_of_{bin_count}'
+points = points[(bin_number-1)*bin_size:bin_number*bin_size]
 for i,point in enumerate(points):
     # with open(eval_points_path,'r') as fp:
     #     eval_points_str = fp.read()
@@ -141,6 +151,9 @@ for i,point in enumerate(points):
         except:
             logger.error(f'There was a problem unpacking the optimizer model for point({point}) in {country}.')
             raise Exception('1')
+    except pop.errors.CoordinateError:
+        logger.error(f'Coordinate error for point ({point}) in {country}.')
+        continue
     except:
         logger.error(f'Optimization problem for point ({point}) in {country}.')
         raise Exception('2')
@@ -171,6 +184,6 @@ results_df = results_df[['lat','lon','turbine_type','rotor_diameter','rated_turb
 'battery_capacity_MWh','H2stor_capacity_MWh','CO2stor_capacity_ton','H2tL_capacity_MW','curtailed_el_MWh',
 'wind_production_MWh','PV_production_MWh','NPV_EUR','CAPEX_EUR','LCOF_MWh','LCOF_liter','runtime']]
 
-results_df.to_csv(os.path.join(results_path,country+'.csv'))
+results_df.to_csv(os.path.join(results_path,country+bin_string+'.csv'))
 
 logger.info(f'Script finished after {time.time()-sstime:.1f} seconds.')
