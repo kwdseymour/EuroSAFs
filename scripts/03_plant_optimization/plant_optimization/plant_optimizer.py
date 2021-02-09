@@ -114,7 +114,7 @@ class Plant:
         specs = pd.read_excel(specs_path,sheet_name='data',index_col=0)
         component_names = ['wind','PV','battery','electrolyzer','CO2','H2stor','CO2stor','H2tL','heat']
         for component_name in component_names:
-            wind_spcap_class=None
+            wind_spcap_class='mid'
             if component_name == 'wind' and not site == None:
                 wind_spcap_class = site.wind_data['specific_capacity_class'][0]
             self.__setattr__(component_name,Component(component_name,specs,wind_class=wind_spcap_class))
@@ -146,15 +146,31 @@ def get_country_points(country,wind_data_path=None):
     points = list(wind_data.index.droplevel(2).unique())
     return points
 
-def costs_NPV(capex,opex,discount_rate,lifetime,capacity):
+def costs_NPV(capex,opex,discount_rate,plant_lifetime,component_lifetime,capacity):
     '''
     Returns the net present value of all costs associated with installation and operation of an asset with the given capacity.
     capex should be given in cost per unit for installed capacity (e.g. EUR/kW)
     opex should be given as a fraction of capex
-    lifetime should be given in years
+    plant_lifetime and component_lifetime should be given in years
     the units of installed capacity must correspond to the capex units
     '''
-    return np.sum([capex]+[capex*opex/(1+discount_rate)**n for n in np.arange(lifetime+1)]) * capacity
+    installment_counts = int(np.ceil(plant_lifetime/component_lifetime)) # This is the number of times a new component must be installed
+    installment_costs = [] # This will hold the discounted CAPEX and OPEX of each component installment
+    for installment_count in range(installment_counts):
+        installment_year = int(installment_count*component_lifetime) # The year in which the component is installed/reinstalled
+        retirement_year = int(min((installment_count+1)*component_lifetime,plant_lifetime))-1 # The year in which the component is retired
+        installment_capex = [capex/(1+discount_rate)**installment_year] # The NPV of the component CAPEX
+        installment_opexes = [capex*opex/(1+discount_rate)**n for n in np.arange(installment_year,retirement_year+1)] # The NPV of OPEXes
+
+        # Calculate the resale value of the component. 
+        # Note that this value is zero unless there is still life in the compoent when the plant is retired
+        yearly_capex = capex/component_lifetime
+        remaining_years = (installment_year+component_lifetime)-retirement_year-1
+        resale_value = [-(yearly_capex*remaining_years)/(1+discount_rate)**(retirement_year)] # This number is negative because it represents the sale of the component
+        
+        # Add all costs together
+        installment_costs.append(np.sum(installment_capex+installment_opexes+resale_value))
+    return np.sum(installment_costs) * capacity
 
 def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterval=10,silent=True,print_status=False):
     '''Runs an optimizer to minimize the levelized cost of fuel production at the given coordinate location.
@@ -290,15 +306,15 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
 
     # Define objective function
     # ----- CHECK IF WIND CAPACITY IS IN RIGHT UNITS RELATIVE TO CAPEX!!! -------
-    lifetime_wind_cost         = costs_NPV(capex=plant.wind.CAPEX,opex=plant.wind.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=wind_units*plant.wind.rated_turbine_power) # Is capacity in the right units relative to CAPEX????
-    lifetime_PV_cost           = costs_NPV(capex=plant.PV.CAPEX,opex=plant.PV.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=PV_capacity_kW)
-    lifetime_electrolyzer_cost = costs_NPV(capex=plant.electrolyzer.CAPEX,opex=plant.electrolyzer.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=electrolyzer_capacity_kW)
-    lifetime_CO2_cost          = costs_NPV(capex=plant.CO2.CAPEX,opex=plant.CO2.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=CO2_capacity_kgph/1e3*8760) # Capacity converted to tons/year to match CAPEX units
-    lifetime_battery_cost      = costs_NPV(capex=plant.battery.CAPEX,opex=plant.battery.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=battery_capacity_kWh)
-    lifetime_H2stor_cost       = costs_NPV(capex=plant.H2stor.CAPEX,opex=plant.H2stor.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=H2stor_capacity_kWh)
-    lifetime_CO2stor_cost      = costs_NPV(capex=plant.CO2stor.CAPEX,opex=plant.CO2stor.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=CO2stor_capacity_kg/1e3) # Capacity converted to tons to match CAPEX units
-    lifetime_H2tL_cost         = costs_NPV(capex=plant.H2tL.CAPEX,opex=plant.H2tL.OPEX,discount_rate=plant.discount_rate,lifetime=plant.lifetime,capacity=H2tL_capacity_kW)
-    lifetime_heat_cost         = costs_NPV(capex=plant.heat.CAPEX, opex=plant.heat.OPEX, discount_rate=plant.discount_rate,lifetime=plant.lifetime, capacity=heatpump_capacity_kW)
+    lifetime_wind_cost         = costs_NPV(capex=plant.wind.CAPEX,opex=plant.wind.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.wind.lifetime,capacity=wind_units*plant.wind.rated_turbine_power) # Is capacity in the right units relative to CAPEX????
+    lifetime_PV_cost           = costs_NPV(capex=plant.PV.CAPEX,opex=plant.PV.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.PV.lifetime,capacity=PV_capacity_kW)
+    lifetime_electrolyzer_cost = costs_NPV(capex=plant.electrolyzer.CAPEX,opex=plant.electrolyzer.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.electrolyzer.lifetime,capacity=electrolyzer_capacity_kW)
+    lifetime_CO2_cost          = costs_NPV(capex=plant.CO2.CAPEX,opex=plant.CO2.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.CO2.lifetime,capacity=CO2_capacity_kgph/1e3*8760) # Capacity converted to tons/year to match CAPEX units
+    lifetime_battery_cost      = costs_NPV(capex=plant.battery.CAPEX,opex=plant.battery.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.battery.lifetime,capacity=battery_capacity_kWh)
+    lifetime_H2stor_cost       = costs_NPV(capex=plant.H2stor.CAPEX,opex=plant.H2stor.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.H2stor.lifetime,capacity=H2stor_capacity_kWh)
+    lifetime_CO2stor_cost      = costs_NPV(capex=plant.CO2stor.CAPEX,opex=plant.CO2stor.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.CO2stor.lifetime,capacity=CO2stor_capacity_kg/1e3) # Capacity converted to tons to match CAPEX units
+    lifetime_H2tL_cost         = costs_NPV(capex=plant.H2tL.CAPEX,opex=plant.H2tL.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.H2tL.lifetime,capacity=H2tL_capacity_kW)
+    lifetime_heat_cost         = costs_NPV(capex=plant.heat.CAPEX,opex=plant.heat.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.heat.lifetime, capacity=heatpump_capacity_kW)
     lifetime_cost              = lifetime_wind_cost + lifetime_PV_cost + lifetime_electrolyzer_cost + lifetime_CO2_cost + lifetime_battery_cost + lifetime_H2stor_cost + lifetime_CO2stor_cost + lifetime_H2tL_cost + lifetime_heat_cost# EUR
 
     # Set objective function
