@@ -80,14 +80,15 @@ class Component:
     An object of this class must be initialized with a DataFrame (specs argument) imported from the /data/plant_assumptions.xlsx file.
     The sheet contains cost and performance assumptions for all plant components.
     '''
-    def __init__(self,name,specs,wind_class=None):
+    def __init__(self,name,specs,wind_class=None,year=2020):
+        self.year = year
         self.specs_units={}
         component_specs = specs.loc[specs.index.str.contains(name+'_')].index
         for spec in component_specs:
             spec_name = spec.replace(name+'_','')
             if name=='wind':
                 spec_name = spec_name.replace(wind_class+'_','')
-            self.__setattr__(spec_name,specs.at[spec,'value'])
+            self.__setattr__(spec_name,specs.at[spec,f'value_{year}'])
             self.specs_units[spec_name] = specs.at[spec,'units']
     
     def spec_units(self,spec):
@@ -104,7 +105,8 @@ class Plant:
     In this case, the rated trubine power specification will be added.
 
     '''
-    def __init__(self,site=None,specs_path=None):
+    def __init__(self,site=None,specs_path=None,year=2020):
+        self.year = year
         self.solved=False
         self.site=site
         if specs_path == None:
@@ -121,7 +123,7 @@ class Plant:
         
         for i in specs.index:
             if all(x not in i for x in component_names):
-                self.__setattr__(i,specs.at[i,'value'])
+                self.__setattr__(i,specs.at[i,f'value_{year}'])
                 self.specs_units[i] = specs.at[i,'units']
         if not self.site == None:
             self.site = site
