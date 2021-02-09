@@ -136,7 +136,7 @@ if max_processes == None:
 results_df = pd.DataFrame()
 points = pop.get_country_points(country)
 bin_count = int(np.ceil(len(points)/bin_size))
-bin_string = f'_{bin_number}_of_{bin_count}'
+bin_string = f'_{bin_number}-{bin_count}'
 points = points[(bin_number-1)*bin_size:bin_number*bin_size]
 for i,point in enumerate(points):
     # with open(eval_points_path,'r') as fp:
