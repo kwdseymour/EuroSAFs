@@ -131,8 +131,6 @@ class Plant:
             self.wind.specs_units['rated_turbine_power'] = 'kW'
             self.wind.specs_units['rotor_diameter'] = 'm'
         assert self.kerosene_energy_fraction+self.gasoline_energy_fraction+self.diesel_energy_fraction == 1
-        assert self.kerosene_mass_fraction+self.gasoline_mass_fraction+self.diesel_mass_fraction == 1
-        # assert self.kerosene_vol_fraction+self.gasoline_vol_fraction+self.diesel_vol_fraction == 1
         
     def spec_units(self,spec):
         '''Returns the units of the given specification.'''
@@ -350,7 +348,8 @@ def unpack_design_solution(plant,unpack_operation=False):
     CAPEXes['CO2stor'] = plant.CO2stor_capacity_kg/1e3 * plant.CO2stor.CAPEX
     plant.CAPEXes = CAPEXes
     plant.CAPEX              = np.sum(list(CAPEXes.values()))
-    plant.LCOF_MWh           = plant.NPV/(sum(plant.required_fuel*1e3/(1+plant.discount_rate)**n for n in np.arange(plant.lifetime+1)))
+    # In the collowing, it is assumed that diesel and gasoline have the same value as kerosene and the plant NPV is thus distributed according to energy output fractions
+    plant.LCOF_MWh           = (plant.NPV*plant.kerosene_energy_fraction)/(sum(plant.required_fuel*1e3/(1+plant.discount_rate)**n for n in np.arange(plant.lifetime+1)))
     plant.LCOF_liter         = plant.LCOF_MWh/3.6e9*plant.kerosene_LHV*0.8
     if unpack_operation:
         unpack_operation_solution(plant)
