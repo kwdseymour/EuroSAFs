@@ -147,6 +147,7 @@ for i,point in enumerate(points):
     # with open(eval_points_path,'r') as fp:
     #     eval_points_str = fp.read()
     # if str(point) not in eval_points_str:
+    logger.info(f'Starting {country} point {i} of {len(points)}.')
     try:
         site = pop.Site(point,country,offshore=offshore)
         plant = pop.Plant(site)
