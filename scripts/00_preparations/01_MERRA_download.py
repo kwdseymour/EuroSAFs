@@ -304,8 +304,8 @@ def download_subset(SW_coord,NE_coord,year,download_path):
         try:
             download_files(generated_URLs,download_path)
             break
-        except:
-            logger.info('Connection failed. Retrying...')
+        except Exception as e:
+            logger.info(f'Connection failed: {e}. Retrying...')
             establish_connection()
     
 # Import the Europe country points geodataframe used to extract the MERRA points found within each country
