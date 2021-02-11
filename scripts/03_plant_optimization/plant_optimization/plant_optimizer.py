@@ -105,6 +105,7 @@ class Component:
             spec_name = spec.replace(name+'_','')
             if name=='wind':
                 spec_name = spec_name.replace(wind_class+'_','')
+                self.wind_class = wind_class
             self.__setattr__(spec_name,specs.at[spec,f'value_{year}'])
             self.specs_units[spec_name] = specs.at[spec,'units']
     
@@ -246,8 +247,9 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
 
     # Define variables
     ## Units
+    if plant.site.shore_designation == 'onshore':
+        PV_capacity_kW           = m.addVar(lb=plant.PV.min_capacity, ub=plant.PV.max_capacity, vtype=GRB.CONTINUOUS, name="PV_capacity_kW") # installed PV capacity [kW]
     wind_units               = m.addVar(lb=plant.wind.min_units, ub=plant.wind.max_units, vtype=GRB.INTEGER, name="wind_units") # installed turbines
-    PV_capacity_kW           = m.addVar(lb=plant.PV.min_capacity, ub=plant.PV.max_capacity, vtype=GRB.CONTINUOUS, name="PV_capacity_kW") # installed PV capacity [kW]
     electrolyzer_capacity_kW = m.addVar(lb=plant.electrolyzer.min_capacity, ub=plant.electrolyzer.max_capacity, vtype=GRB.CONTINUOUS, name="electrolyzer_capacity_kW") # installed (electricity input) electrolyzer capacity [kW]
     CO2_capacity_kgph        = m.addVar(lb=plant.CO2.min_capacity, ub=plant.CO2.max_capacity, vtype=GRB.CONTINUOUS, name="CO2_capacity_kgph") # installed CO2 collector capacity [kg/hr CO2 output]
     H2tL_capacity_kW         = m.addVar(lb=plant.H2tL.min_capacity, ub=plant.H2tL.max_capacity, vtype=GRB.CONTINUOUS, name="H2tL_capacity_kW") # installed hydrogen-to-liquid capacity [kW jet fuel output]
@@ -279,7 +281,10 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     m.update()
 
     wind_production_kWh = plant.site.wind_data['kWh']*wind_units # [kWh]
-    PV_production_kWh   = plant.site.PV_data['Wh']*PV_capacity_kW/1e3 # [kWh] note: PV_data given in Wh/kW installed
+    if plant.site.shore_designation == 'onshore':
+        PV_production_kWh   = plant.site.PV_data['Wh']*PV_capacity_kW/1e3 # [kWh] note: PV_data given in Wh/kW installed
+    else:
+        PV_production_kWh = pd.Series([0]*len(wind_production_kWh),name='Wh')
 
     H2_production_kWh   = [H2_el_kWh[i]*plant.electrolyzer.efficiency for i in time_vec] # [kWh hydrogen produced per hour]
     H2_consumption_kWh  = [H2_production_kWh[i] + H2stor_dis_kWh[i] - H2stor_chr_kWh[i] for i in time_vec] # [kWh hydrogen consumed per hour]
@@ -343,8 +348,11 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
 
     # Define objective function
     # ----- CHECK IF WIND CAPACITY IS IN RIGHT UNITS RELATIVE TO CAPEX!!! -------
+    if plant.site.shore_designation == 'onshore':
+        lifetime_PV_cost       = costs_NPV(capex=plant.PV.CAPEX,opex=plant.PV.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.PV.lifetime,capacity=PV_capacity_kW)
+    else:
+        lifetime_PV_cost       = 0
     lifetime_wind_cost         = costs_NPV(capex=plant.wind.CAPEX,opex=plant.wind.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.wind.lifetime,capacity=wind_units*plant.wind.rated_turbine_power) # Is capacity in the right units relative to CAPEX????
-    lifetime_PV_cost           = costs_NPV(capex=plant.PV.CAPEX,opex=plant.PV.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.PV.lifetime,capacity=PV_capacity_kW)
     lifetime_electrolyzer_cost = costs_NPV(capex=plant.electrolyzer.CAPEX,opex=plant.electrolyzer.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.electrolyzer.stack_lifetime,capacity=electrolyzer_capacity_kW,replacement_capex_fraction=plant.electrolyzer.stack_CAPEX)
     lifetime_CO2_cost          = costs_NPV(capex=plant.CO2.CAPEX,opex=plant.CO2.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.CO2.lifetime,capacity=CO2_capacity_kgph/1e3*8760) # Capacity converted to tons/year to match CAPEX units
     lifetime_battery_cost      = costs_NPV(capex=plant.battery.CAPEX,opex=plant.battery.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.battery.lifetime,capacity=battery_capacity_kWh)
@@ -382,8 +390,11 @@ def unpack_design_solution(plant,unpack_operation=False):
     '''Parses the results of the optimized plant and save the values to attributes of the given plant object.
     Set unpack_operation to True in order to unpack the hourly operation of applicable components (e.g. wind, PV, CO2, battery)
     '''
+    if plant.site.shore_designation == 'onshore':
+        plant.PV_capacity_kW       = plant.m.getVarByName('PV_capacity_kW').x
+    else:
+        plant.PV_capacity_kW       = 0
     plant.wind_units               = plant.m.getVarByName('wind_units').x
-    plant.PV_capacity_kW           = plant.m.getVarByName('PV_capacity_kW').x
     plant.electrolyzer_capacity_kW = plant.m.getVarByName('electrolyzer_capacity_kW').x
     plant.CO2_capacity_kgph        = plant.m.getVarByName('CO2_capacity_kgph').x
     plant.battery_capacity_kWh     = plant.m.getVarByName('battery_capacity_kWh').x
@@ -416,7 +427,10 @@ def unpack_operation_solution(plant):
     The results are also saved to the attribute named "operation" as a DatFrame for easy viewing.
     '''
     plant.wind_production_kWh = plant.site.wind_data['kWh']*plant.m.getVarByName('wind_units').x # [kWh]
-    plant.PV_production_kWh = plant.site.PV_data['Wh']*plant.m.getVarByName('PV_capacity_kW').x/1e3 # [kWh]
+    if plant.site.shore_designation == 'onshore':
+        plant.PV_production_kWh = plant.site.PV_data['Wh']*plant.m.getVarByName('PV_capacity_kW').x/1e3 # [kWh]
+    else:
+        plant.PV_production_kWh = pd.Series([0]*len(plant.wind_production_kWh),name='Wh')
     
     op_dict = {'wind_production_kWh':list(plant.wind_production_kWh),'PV_production_kWh':list(plant.PV_production_kWh)}
 
