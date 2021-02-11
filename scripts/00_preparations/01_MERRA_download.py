@@ -42,6 +42,10 @@ sys.path.append(os.path.join(SAF_directory,'scripts/03_plant_optimization'))
 from plant_optimization.utilities import create_logger
 logger = create_logger(scratch_path,__name__,__file__)
 
+results_path = os.path.join(SAF_directory,'data/MERRA')
+if not os.path.isdir(results_path):
+    os.mkdir(results_path)
+
 # Download raw data
 #This part defines the input parameters according to the user and creates an URL that can download the desired MERRA-2 data via the OPeNDAP interface (see <a href="documentation.ipynb">documentation notebook</a> for information on OPeNDAP).
 
@@ -321,7 +325,7 @@ def download_country_files(country,year=2016):
     logger.info('Initiating download process for {}.'.format(country))
     SW_coord = (min(europe_merra_points.loc[europe_merra_points.country==country].bounds.miny), min(europe_merra_points.loc[europe_merra_points.country==country].bounds.minx))
     NE_coord = (max(europe_merra_points.loc[europe_merra_points.country==country].bounds.maxy), max(europe_merra_points.loc[europe_merra_points.country==country,].bounds.maxx))
-    download_path = os.path.join(SAF_directory,'data/MERRA',country)
+    download_path = os.path.join(results_path,country)
     if not os.path.isdir(download_path):
         os.mkdir(download_path)
     download_subset(SW_coord,NE_coord,[year],download_path)
@@ -335,6 +339,7 @@ establish_connection()
 The number of concurrent prcesses can be increased to decrease the ammount of time required to download all the data.
 If you have slow wifi, try setting it to 4 or 5. If you download too fast, however, the data portal might ban you for a day.'''
 countries = europe_merra_points['country'].unique()
+countries = ['United_Kingdom']
 concurrent_processes = 3
 P = mp.Pool(concurrent_processes)
 P.map(download_country_files,countries)
