@@ -8,6 +8,7 @@ The code is adapted from the [weather_data](https://github.com/Open-Power-System
 For each country given, the nearest MERRA point is identified and the hourly data for all points in each day of 2016 is downloaded to a file in a folder named according to the country.
 '''
 
+# python scripts/00_preparations/01_MERRA_download.py
 import numpy as np
 import logging
 import multiprocessing as mp
@@ -20,11 +21,18 @@ from http.cookiejar import CookieJar
 import time
 from calendar import monthrange
 import json
+import sys
 
 # Get EuroSAFs parent directory 
 SAF_directory = os.path.dirname(__file__)
 for i in range(2):
     SAF_directory = os.path.dirname(SAF_directory)
+# Get scratch path
+if 'cluster/home' in os.getcwd():
+    # Uses the $SCRATCH environment variable to locate the scratch file if this module is run within Euler
+    scratch_path = os.environ['SCRATCH']
+else:
+    scratch_path = os.path.join(SAF_directory,'scratch')
 # Read configuration file. The MERRA username is extracted from here.
 with open(os.path.join(SAF_directory,'scripts/config.json')) as config_file:
     config = json.load(config_file)
@@ -32,15 +40,11 @@ with open(os.path.join(SAF_directory,'scripts/config.json')) as config_file:
 # Add a logger
 sys.path.append(os.path.join(SAF_directory,'scripts/03_plant_optimization'))
 from plant_optimization.utilities import create_logger
-logger = create_logger(SAF_directory,__name__,__file__)
+logger = create_logger(scratch_path,__name__,__file__)
 
 # Download raw data
-
-## Input
-
 #This part defines the input parameters according to the user and creates an URL that can download the desired MERRA-2 data via the OPeNDAP interface (see <a href="documentation.ipynb">documentation notebook</a> for information on OPeNDAP).
 
-### Geography coordinates
 
 '''
 Definition of desired coordinates. The user has to input two corner coordinates 
@@ -244,13 +248,11 @@ def generate_urls(MERRA_coords,year): #daylist):
 
     return generated_URLs
 
-def establish_connection(username=config['merra_username']):
+def establish_connection(username=config['merra_username'],password=config['merra_password']):
     '''An Earthdata account is required to download data. An account can be created here: https://urs.earthdata.nasa.gov/
     
     This function creates a password manager to deal with the 401 response that is returned from Earthdata Login.
     '''
-
-    password = getpass.getpass(f'Earthdata password for {username}:')
 
     password_manager = urllib.request.HTTPPasswordMgrWithDefaultRealm()
     password_manager.add_password(None, "https://urs.earthdata.nasa.gov", username, password)
@@ -282,7 +284,6 @@ def download_files(generated_URLs,download_path):
                 file_ = open(path, 'wb')
                 file_.write(DataBody)
                 file_.close()
-    #                 print (file_name, "has downloaded")
             except requests.exceptions.HTTPError as e:
                  logger.error(e)
     if found_files > 0:
@@ -304,21 +305,23 @@ def download_subset(SW_coord,NE_coord,year,download_path):
             download_files(generated_URLs,download_path)
             break
         except:
+            logger.info('Connection failed. Retrying...')
             establish_connection()
     
 # Import the Europe country points geodataframe used to extract the MERRA points found within each country
 # This file was created in the Notebook: N01_country_boundaries.ipynb
-europe_points = gpd.read_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.shp'))
-coast_points = gpd.read_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Coast_Evaluation_Points.shp'))
+europe_merra_points = gpd.read_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_MERRA_Evaluation_Points.shp'))
+# coast_points = gpd.read_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Coast_Evaluation_Points.shp'))
 
-def download_country_files(country,download_path, year=2016):
+def download_country_files(country,year=2016):
     '''Downloads all the files corresponding to points within the given country from MERRA. Each file contains hourly wind speed data for the point
     for the given year and is saved into a folder named after the country.'''
     
     stime = time.time()
     logger.info('Initiating download process for {}.'.format(country))
-    SW_coord = (min(europe_points.loc[europe_points.name==country].bounds.miny), min(europe_points.loc[europe_points.name==country].bounds.minx))
-    NE_coord = (max(europe_points.loc[europe_points.name==country].bounds.maxy), max(europe_points.loc[europe_points.name==country,'geometry'].bounds.maxx))
+    SW_coord = (min(europe_merra_points.loc[europe_merra_points.country==country].bounds.miny), min(europe_merra_points.loc[europe_merra_points.country==country].bounds.minx))
+    NE_coord = (max(europe_merra_points.loc[europe_merra_points.country==country].bounds.maxy), max(europe_merra_points.loc[europe_merra_points.country==country,].bounds.maxx))
+    download_path = os.path.join(SAF_directory,'data/MERRA',country)
     if not os.path.isdir(download_path):
         os.mkdir(download_path)
     download_subset(SW_coord,NE_coord,[year],download_path)
@@ -328,15 +331,12 @@ establish_connection()
 
 # Notice: Running the following cell will query the API and save the results to files
 
-'''This cell uses the multiprocessing library to download data for multiple countries simultaneously. 
+'''The following uses the multiprocessing library to download data for multiple countries simultaneously. 
 The number of concurrent prcesses can be increased to decrease the ammount of time required to download all the data.
 If you have slow wifi, try setting it to 4 or 5. If you download too fast, however, the data portal might ban you for a day.'''
-for country in europe_points['name'].unique().tolist():
-    download_path = os.path.join(SAF_directory,'data/MERRA',country)
-    download_country_files(country, download_path)
-
-for country in coast_points['name'].unique().tolist():
-    download_path = os.path.join(SAF_directory,'data/MERRA',country,'coast')
-    download_country_files(country, download_path)
-
-# For now, the dataset only has MERRA-2 grid coordinates. To translate the points back to "real world" coordinates, the data portal offers a dimension scale file.
+countries = europe_merra_points['country'].unique()
+concurrent_processes = 3
+P = mp.Pool(concurrent_processes)
+P.map(download_country_files,countries)
+P.close()
+P.join()

@@ -25,6 +25,7 @@ from gurobipy import *
 import matplotlib.pyplot as plt
 import warnings
 import logging
+import geopandas as gpd
 from .errors import *
 from .utilities import create_logger
 
@@ -48,30 +49,45 @@ class Site():
 
     Instances of this class are intended to be attributed to "Plant" objects.
     '''
-    def __init__(self,coordinates,country,PV_data_path=None,wind_data_path=None):
+    def __init__(self,coordinates,country,offshore=False,PV_data_path=None,wind_data_path=None):
         self.country = country
         self.lat = coordinates[0]
         self.lon = coordinates[1]
-        warnings.simplefilter("ignore", UserWarning)
-        if PV_data_path == None:
-            PV_data_path = os.path.join(SAF_directory,'data','PVGIS',country+'_PV.parquet.gzip')
+        self.shore_designation = 'offshore' if offshore else 'onshore'
+        # Lookup corresponding MERRA point
+        europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
+        lookup_row = europe_points.loc[(europe_points.country==country)&(europe_points.grid_lat==self.lat)&(europe_points.grid_lon==self.lon)&(europe_points.sea_node==offshore)]
+        if len(lookup_row) == 0:
+            raise CoordinateError(coordinates,f'Europe_Evaluation_Points ({self.shore_designation})')
+            logger.error(f'The given point ({coordinates}) was not found in the Europe_Evaluation_Points.csv ({self.shore_designation}) dataframe.')
+        self.merra_lat = lookup_row.merra_lat.item()
+        self.merra_lon = lookup_row.merra_lon.item()
         if wind_data_path == None:
             wind_data_path = os.path.join(SAF_directory,'results','01_merra_wind_preprocessing',country+'.parquet.gzip')
-        PV_data = pd.read_parquet(PV_data_path)
-        PV_data.sort_index(inplace=True)
+        warnings.simplefilter("ignore", UserWarning)
         wind_data = pd.read_parquet(wind_data_path)
-        wind_data.sort_index(inplace=True)
+
+        if not offshore:
+            if PV_data_path == None:
+                PV_data_path = os.path.join(SAF_directory,'data','PVGIS',country+'_PV.parquet.gzip')
+            self.pv_lat = lookup_row.pv_lat.item()
+            self.pv_lon = lookup_row.pv_lon.item()
+            PV_data = pd.read_parquet(PV_data_path)
+            PV_data.sort_index(inplace=True)
+            if coordinates not in PV_data.index.droplevel(2).unique():
+                raise CoordinateError(coordinates,f'PV ({self.shore_designation})')
+                logger.error(f'The given point ({coordinates}) was not found in the PV ({self.shore_designation}) dataframe.')
+            self.PV_data =  PV_data.loc[idx[self.lat,self.lon]]
+            wind_data = wind_data.loc[wind_data.offshore==offshore]
         warnings.simplefilter("default", UserWarning)
+        wind_data.sort_index(inplace=True)
         
         if coordinates not in wind_data.index.droplevel(2).unique():
-            raise CoordinateError(coordinates,'wind')
-            logger.error(f'The given point ({coordinates}) was not found in the wind dataframe.')
-        if coordinates not in PV_data.index.droplevel(2).unique():
-            raise CoordinateError(coordinates,'PV')
-            logger.error(f'The given point ({coordinates}) was not found in the PV dataframe.')
-        self.PV_data =  PV_data.loc[idx[self.lat,self.lon]]
-        self.wind_data =  wind_data.loc[idx[self.lat,self.lon]]
-        assert len(self.PV_data)==len(self.wind_data)
+            raise CoordinateError(coordinates,f'wind ({self.shore_designation})')
+            logger.error(f'The given point ({coordinates}) was not found in the wind ({self.shore_designation}) dataframe.')
+        self.wind_data =  wind_data.loc[idx[self.merra_lat,self.merra_lon]]
+        if not offshore:
+            assert len(self.PV_data)==len(self.wind_data)
 
 class Component:
     '''
@@ -138,15 +154,30 @@ class Plant:
         '''Returns the units of the given specification.'''
         return self.specs_units[spec]
     
-def get_country_points(country,wind_data_path=None):
-    '''Returns all the MERRA points (0.5 x 0.625 degree geospatial resolution) that reside within the provided country's borders.'''
-    if wind_data_path == None:
-        wind_data_path = os.path.join(SAF_directory,'results','01_merra_wind_preprocessing',country+'.parquet.gzip')
-    wind_data = pd.read_parquet(wind_data_path)
-    points = list(wind_data.index.droplevel(2).unique())
-    return points
+# def get_country_points(country,wind_data_path=None):
+#     '''Returns all the MERRA points (0.5 x 0.625 degree geospatial resolution) that reside within the provided country's borders.'''
+#     if wind_data_path == None:
+#         wind_data_path = os.path.join(SAF_directory,'results','01_merra_wind_preprocessing',country+'.parquet.gzip')
+#     wind_data = pd.read_parquet(wind_data_path)
+#     points = list(wind_data.index.droplevel(2).unique())
+#     return points
 
-def costs_NPV(capex,opex,discount_rate,plant_lifetime,component_lifetime,capacity):
+def get_country_points(country,onshore,offshore):
+    '''Returns all the MERRA points (0.5 x 0.625 degree geospatial resolution) that reside within the provided country's borders.'''
+    europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
+    country_points = europe_points.loc[europe_points.country==country].set_index(['grid_lat','grid_lon'])
+    if onshore and not offshore:
+        country_points = country_points.loc[~country_points.sea_node]
+    elif not onshore and offshore:
+        country_points = country_points.loc[country_points.sea_node]
+    elif onshore and offshore:
+        pass
+    else:
+        print('Either onshore or offshore must be set to TRUE')
+
+    return list(country_points.index.unique())
+
+def costs_NPV(capex,opex,discount_rate,plant_lifetime,component_lifetime,capacity,replacement_capex_fraction=1):
     '''
     Returns the net present value of all costs associated with installation and operation of an asset with the given capacity.
     capex should be given in cost per unit for installed capacity (e.g. EUR/kW)
@@ -159,7 +190,10 @@ def costs_NPV(capex,opex,discount_rate,plant_lifetime,component_lifetime,capacit
     for installment_count in range(installment_counts):
         installment_year = int(installment_count*component_lifetime) # The year in which the component is installed/reinstalled
         retirement_year = int(min((installment_count+1)*component_lifetime,plant_lifetime))-1 # The year in which the component is retired
-        installment_capex = [capex/(1+discount_rate)**installment_year] # The NPV of the component CAPEX
+        if installment_count == 0:
+            installment_capex = [capex/(1+discount_rate)**installment_year] # The NPV of the component CAPEX
+        else:
+            installment_capex = [capex*replacement_capex_fraction/(1+discount_rate)**installment_year] # The NPV of the component CAPEX
         installment_opexes = [capex*opex/(1+discount_rate)**n for n in np.arange(installment_year,retirement_year+1)] # The NPV of OPEXes
 
         # Calculate the resale value of the component. 
@@ -308,7 +342,7 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     # ----- CHECK IF WIND CAPACITY IS IN RIGHT UNITS RELATIVE TO CAPEX!!! -------
     lifetime_wind_cost         = costs_NPV(capex=plant.wind.CAPEX,opex=plant.wind.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.wind.lifetime,capacity=wind_units*plant.wind.rated_turbine_power) # Is capacity in the right units relative to CAPEX????
     lifetime_PV_cost           = costs_NPV(capex=plant.PV.CAPEX,opex=plant.PV.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.PV.lifetime,capacity=PV_capacity_kW)
-    lifetime_electrolyzer_cost = costs_NPV(capex=plant.electrolyzer.CAPEX,opex=plant.electrolyzer.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.electrolyzer.lifetime,capacity=electrolyzer_capacity_kW)
+    lifetime_electrolyzer_cost = costs_NPV(capex=plant.electrolyzer.CAPEX,opex=plant.electrolyzer.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.electrolyzer.stack_lifetime,capacity=electrolyzer_capacity_kW,replacement_capex_fraction=plant.electrolyzer.stack_CAPEX)
     lifetime_CO2_cost          = costs_NPV(capex=plant.CO2.CAPEX,opex=plant.CO2.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.CO2.lifetime,capacity=CO2_capacity_kgph/1e3*8760) # Capacity converted to tons/year to match CAPEX units
     lifetime_battery_cost      = costs_NPV(capex=plant.battery.CAPEX,opex=plant.battery.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.battery.lifetime,capacity=battery_capacity_kWh)
     lifetime_H2stor_cost       = costs_NPV(capex=plant.H2stor.CAPEX,opex=plant.H2stor.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.H2stor.lifetime,capacity=H2stor_capacity_kWh)

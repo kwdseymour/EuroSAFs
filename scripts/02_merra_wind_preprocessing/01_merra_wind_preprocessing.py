@@ -1,6 +1,6 @@
 #bsub -n 32 -R "rusage[mem=4096]" -oo $HOME/SAFlogistics/results/01_merra_wind_preprocessing 'python SAFlogistics/scripts/01_merra_wind_preprocessing/01_merra_wind_preprocessing.py -d $HOME/SAFlogistics -p32'
 
-#python scripts/02_merra_wind_preprocessing/01_merra_wind_preprocessing.py -d .
+# python scripts/02_merra_wind_preprocessing/01_merra_wind_preprocessing.py -d .
 
 '''
 This script opens the downloaded MERRA wind netCDF4 files for each country, preprocesses them, and saves the results to parquet files.
@@ -41,6 +41,7 @@ import logging
 import time
 import json
 import multiprocessing as mp
+import geopandas as gpd
 
 sstime = time.time() # time in seconds since January 1, 1970 (float)
 sstime_string = datetime.datetime.fromtimestamp(sstime).strftime('%d%m%Y%H') # takes sstime and transfers it into date and time of local timezone  (string with day, month year and hour)
@@ -215,21 +216,22 @@ try:
     countries = list(pd.read_csv(countries_filepath, index_col=0)['country'])
 except FileNotFoundError:
     raise Exception('Configuration file not found. The csv file containing the list of coutries to analyze should be found in the same directory location as this script.')
+
 removed_countries = []
 for country in countries:
     if country not in str(os.listdir(os.path.join(SAF_directory,'data','MERRA'))):
-        countries.remove(country)
         removed_countries.append(country)
+for country in removed_countries:
+    countries.remove(country)
 if len(removed_countries)>0:
     logger.info('The following countries were not found in the MERRA folder: {}'.format(removed_countries))
 logger.info('Country set used for analysis: {}'.format(countries))
 
-# Read evaluation points file used to filter out points which are without country borders
+# Read evaluation points file used to filter out points that do not need to be evaluated
 try:
-    with open(os.path.join(SAF_directory,'data','Countries_WGS84/processed/Europe_Evaluation_Points.json'),'r') as fp:
-        land_points = json.load(fp)
-    with open(os.path.join(SAF_directory,'data','Countries_WGS84/processed/Coast_Evaluation_Points.json'),'r') as fp:
-        coast_points = json.load(fp)
+    with open(os.path.join(SAF_directory,'data','Countries_WGS84/processed/Europe_MERRA_Evaluation_Points.json'),'r') as fp:
+        merra_points_dict = json.load(fp)
+    europe_merra_points = gpd.read_file(os.path.join(SAF_directory,'data','Countries_WGS84/processed/Europe_MERRA_Evaluation_Points.shp')) 
 except FileNotFoundError as e:
     raise Exception(f'{e.filename} file not found. This file containing the MERRA points within each country\'s borders must be available at data/Countries_WGS84/processed/.')
 
@@ -277,8 +279,11 @@ def files_to_dataframe(country):
     except xr.MergeError as e:
         logger.error('Merge error for {}:'.format(country))
         logger.error(e)
-
-    except FileNotFoundError:
+    except FileNotFoundError as e:
+        logger.error(f'Process {os.getpid} error: {e}')
+        exit()
+    except Exception as e:
+        logger.error(f'Process {os.getpid} error: {e}')
         exit()
         
     init_len = len(df_wind)
@@ -287,8 +292,9 @@ def files_to_dataframe(country):
         logger.info('{}: {} NaN rows were found and dropped.'.format(country,init_len - len(df_wind)))
     return df_wind
 
-def preprocess_df(df_wind,country):
+def preprocess_df(df,country):
     '''Resets and configures multi-index of dataframe, calculates wind velocities, and calculates Hellmann exponent.'''
+    df_wind = df.copy()
     df_wind.reset_index(inplace=True)
     df_wind.loc[abs(df_wind.lon)<1e-3,'lon'] = 0 # xarray reads zeros as very small numbers, this sets them correctly
     df_wind.loc[abs(df_wind.lat)<1e-3,'lat'] = 0 # xarray reads zeros as very small numbers, this sets them correctly
@@ -300,9 +306,10 @@ def preprocess_df(df_wind,country):
     # Drop points not in "coast_points" or "land_points"
     df_len = len(df_wind) #Store the length for comparison
     # df_wind.drop(df_wind.loc[~df_wind.index.droplevel(2).isin([(x[1],x[0]) for x in eval_points[country]])].index,inplace=True)
-    eval_points = land_points.get(country,[]) + coast_points.get(country,[])
-    df_wind.drop(df_wind.loc[~df_wind.index.droplevel(2).isin(eval_points)].index,inplace=True)
-    logger.info(f'Dropped {(df_len-len(df_wind))/df_len*100:.1f}% of points due to location outside {country} borders.')
+    # eval_points = land_points.get(country,[]) + coast_points.get(country,[])
+    eval_points = merra_points_dict[country]
+    df_wind = df_wind.loc[df_wind.index.droplevel(2).isin(eval_points)]
+    logger.info(f'Dropped {(df_len-len(df_wind))/df_len*100:.1f}% of points due to location outside {country} evaluation set.')
 
     # Calculate the wind speed from the northward and eastward velocity components
     df_wind['v_10m'] = np.sqrt(df_wind['U10M']**2 + df_wind['V10M']**2) #[m/s]
@@ -312,6 +319,7 @@ def preprocess_df(df_wind,country):
     # The 50 meter wind speed corresponds to that 50 m above the ground, the 10 m wind speed corresponds to that 10 m above the zero-plane displacement height (DISPH) (Mosshammer, 2016)
     df_wind['hellmann'] = (np.log(df_wind.v_50m) - np.log(df_wind.v_10m)) / (np.log(50) - np.log(10 + df_wind.DISPH)) # (Mosshammer, 2016)
     df_wind.drop(columns=['U10M','V10M','U50M','V50M'],inplace=True)
+    return df_wind
 
 def assign_turbine_model(df,optimization_metric='lcoe',shore_designation='onshore'):
     '''Calculates hypothetical power output for each turbine model in "models" and returns the model with the most optimal optimization metric value.
@@ -360,7 +368,8 @@ def assign_turbine_model(df,optimization_metric='lcoe',shore_designation='onshor
         df.to_csv(os.path.join(cache_path,f'{refnum}.csv'))
     return winning_turbine, winning_output
         
-def compute_power_output(df,offshore_points=None):
+# def compute_power_output(df,offshore_points=None):
+def compute_power_output(df):
     '''Calculates the hourly power output from the wind speed data using an optimal wind turbine.
 
     - The optimal wind turbine is derived from the "assign_turbine_model" function.
@@ -374,11 +383,12 @@ def compute_power_output(df,offshore_points=None):
     df['specific_capacity_class'] = ''
     df['rep_hub_height'] = ''
     df['hub_height'] = ''
+    df['offshore'] = ''
     for coords in df.index.droplevel(2).unique():
-        try:
-            shore_designation = 'offshore' if list(coords) in offshore_points else 'onshore'
-        except TypeError:
-            shore_designation = 'onshore'
+        # Get shore designation
+        is_offshore = europe_merra_points.loc[(europe_merra_points.grid_lat==coords[0])&(europe_merra_points.grid_lon==coords[1]),'pt_in_sea'].iloc[0]
+        shore_designation = 'offshore' if is_offshore else 'onshore'
+
         turbine,output = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric,shore_designation=shore_designation)
         # turbine = turbines[shore_designation][optimal_turbine]
         # speed_at_hub = df.loc[coords].v_50m*(turbine.hub_height/50)**df.loc[coords].hellmann
@@ -390,6 +400,7 @@ def compute_power_output(df,offshore_points=None):
         df.loc[idx[coords],'specific_capacity_class'] = turbine.specific_capacity_class
         df.loc[idx[coords],'rep_hub_height'] = turbine.jrc_hub_height # [m]
         df.loc[idx[coords],'hub_height'] = turbine.hub_height # [m]
+        df.loc[idx[coords],'offshore'] = bool(is_offshore) # [m]
 
 def process_country(country):
     '''Extract files to DataFrame, preprocess dataframe, and compute power output for each country in the "countries" list'''
@@ -398,16 +409,16 @@ def process_country(country):
     cache_file_name = f'{script_name}_{country}_{sstime_string}.csv'
     # Extract files & preprocess DataFrame
     df_wind = files_to_dataframe(country)
-    preprocess_df(df_wind,country)
+    df_wind = preprocess_df(df_wind,country)
     # Cache DatFrame
     logger.info(f'Initial caching for {country}...')
     df_wind.to_parquet(os.path.join(cache_path,f'{cache_file_name}.parquet.gzip'),compression='gzip')
     logger.info(f'Initial {country} cache saved')
     # # ADD SOME CODE HERE TO IDENTIFY POINTS THAT ARE OFFSHORE
     # logger.error(f'The points in {country} are not assigned an on/offshore designation. Thus, all points are assumed to be onshore.')
-    offshore_points = coast_points.get(country,[])
+    # offshore_points = coast_points.get(country,[])
     # Calculate power output
-    compute_power_output(df_wind,offshore_points=offshore_points)
+    compute_power_output(df_wind)
     # Cache & save results
     logger.info(f'Saving results for {country}...')
     df_wind.to_parquet(os.path.join(cache_path,f'{cache_file_name}.parquet.gzip'),compression='gzip')

@@ -80,6 +80,10 @@ parser.add_argument('-s','--save_operation',
     action='store_true',
     help='Saves the plant operation data to an operations folder in the results folder.',
     default=False)
+parser.add_argument('-o','--offshore',
+    action='store_true',
+    help='Calculate offshore points.',
+    default=False)
 args = parser.parse_args()
 
 MIPGap = args.MIPGap
@@ -88,7 +92,8 @@ silent_optimizer = not(args.verbose_optimizer)
 save_operation = args.save_operation
 timelimit = args.time_limit
 bin_number = args.bin_number
-bin_size = 50
+offshore = args.offshore
+bin_size = 100
 country = args.country
 max_processes = args.max_processes
 SAF_directory = args.SAF_directory
@@ -134,7 +139,7 @@ if max_processes == None:
     logger.info(f'Max processes parameter not set. Using {max_processes} cores.')
 
 results_df = pd.DataFrame()
-points = pop.get_country_points(country)
+points = pop.get_country_points(country,onshore=not onshore,offshore=offshore)
 bin_count = int(np.ceil(len(points)/bin_size))
 bin_string = f'_{bin_number}-{bin_count}'
 points = points[(bin_number-1)*bin_size:bin_number*bin_size]
@@ -143,7 +148,7 @@ for i,point in enumerate(points):
     #     eval_points_str = fp.read()
     # if str(point) not in eval_points_str:
     try:
-        site = pop.Site(point,country)
+        site = pop.Site(point,country,offshore=offshore)
         plant = pop.Plant(site)
         pop.optimize_plant(plant,threads=max_processes,MIPGap=MIPGap,timelimit=timelimit,DisplayInterval=DisplayInterval,silent=silent_optimizer)
         try:
@@ -175,7 +180,7 @@ for i,point in enumerate(points):
             fp.write(f'\n{country} point {point}: {e}')
 
     if save_operation:
-        plant.operation.to_parquet(os.path.join(operations_path,f'{country}_{site.lat}_{site.lon}.parquet.gzip'),compression='gzip')
+        plant.operation.to_parquet(os.path.join(operations_path,f'{country}_{site.lat}_{site.lon}_{site.shore_designation}.parquet.gzip'),compression='gzip')
 
     results_df = results_df.append(results_dict,ignore_index=True)
 
@@ -184,6 +189,10 @@ results_df = results_df[['lat','lon','turbine_type','rotor_diameter','rated_turb
 'battery_capacity_MWh','H2stor_capacity_MWh','CO2stor_capacity_ton','H2tL_capacity_MW','curtailed_el_MWh',
 'wind_production_MWh','PV_production_MWh','NPV_EUR','CAPEX_EUR','LCOF_MWh','LCOF_liter','runtime']]
 
+if offshore:
+    results_path = os.path.join(results_path,'offshore')
+    if not os.path.isdir(results_path):
+        os.mkdir(results_path)
 results_df.to_csv(os.path.join(results_path,country+bin_string+'.csv'))
 
 logger.info(f'Script finished after {time.time()-sstime:.1f} seconds.')

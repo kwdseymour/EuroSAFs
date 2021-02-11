@@ -129,10 +129,10 @@ def generated_gridded_country(country, map_eu):
 
     # Buffer the country geometry by 60 km and find the bounds of the resulting geometry
     country_geom = map_eu.loc[map_eu.country==country,'geometry'].item()
-    centroid_lon = country_geom.centroid.x
-    centroid_lat = country_geom.centroid.y
+    cent_lon = country_geom.centroid.x
+    cent_lat = country_geom.centroid.y
     # The following line is adapted from here: https://automating-gis-processes.github.io/site/2018/notebooks/L2/projections.html
-    aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=centroid_lat, lon_0=centroid_lon).srs # Create a CRS from the Azimuthal Equidistant project centered on the country's centroid
+    aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=cent_lat, lon_0=cent_lon).srs # Create a CRS from the Azimuthal Equidistant project centered on the country's centroid
     country_geom_aeqd = map_eu.loc[map_eu.country==country].copy().to_crs(crs=aeqd)
     buffered_country = country_geom_aeqd.buffer(100000).to_crs(map_eu.crs) # Create a geometry that is buffered 100km around the original country geometry
 
@@ -143,8 +143,8 @@ def generated_gridded_country(country, map_eu):
     grid = []
     lats = []
     lons = []
-    point_in_country = []
-    point_offshore = []
+    in_country = []
+    pt_in_sea = []
     for i in x:
         for j in y:
             grid.append(shapely.geometry.Polygon([[i-node_width/2,j+node_height/2], # top left
@@ -154,25 +154,30 @@ def generated_gridded_country(country, map_eu):
             lats.append(j)
             lons.append(i)
             # Check if the point is within the country geometry
-            point_in_country.append(map_eu.loc[map_eu.country==country,'geometry'].item().contains(shapely.geometry.Point(i,j)))
-            point_offshore.append(not buffered_europe_land_masses.contains(shapely.geometry.Point(i,j)))
-    grid_df = gpd.GeoDataFrame({'geometry':grid,'grid_lat':lats,'grid_lon':lons,'point_in_country':point_in_country,'point_offshore':point_offshore},crs=map_eu.crs)
+            in_country.append(map_eu.loc[map_eu.country==country,'geometry'].item().contains(shapely.geometry.Point(i,j)))
+            pt_in_sea.append(not buffered_europe_land_masses.contains(shapely.geometry.Point(i,j)))
+    grid_df = gpd.GeoDataFrame({'geometry':grid,'grid_lat':lats,'grid_lon':lons,'in_country':in_country,'pt_in_sea':pt_in_sea},crs=map_eu.crs)
     # Find the intersection of the grid with the country geometry
     land_grid = gpd.overlay(grid_df,map_eu.loc[map_eu.country==country],how='intersection')
     land_grid.crs = map_eu.crs
-    land_grid['offshore_node']=False
+    land_grid['coast_pt']=False
+    land_grid['sea_node']=False
     # Find the intersection of the grid with the country geometry
-    coast_grid = gpd.overlay(grid_df,gpd.GeoDataFrame({'geometry':buffered_country},crs=map_eu.crs),how='intersection')
-    coast_grid.crs = map_eu.crs
+    sea_grid = gpd.overlay(grid_df,gpd.GeoDataFrame({'geometry':buffered_country},crs=map_eu.crs),how='intersection')
+    sea_grid.crs = map_eu.crs
     # Subtract all land masses from the buffered gridded country to find the gridded coasts around the country
     # First, create a world gdf and buffer the geometries by the previously defined minimum_offshore_dist. This will be used to subtract out all land masses and shorelines within a specific distance of the coasts
-    buffered_world = gpd.GeoDataFrame({'geometry':world.to_crs(aeqd).buffer(minimum_offshore_dist*1e3).to_crs(world_crs)},crs=world_crs)
-    coast_grid = gpd.overlay(coast_grid,buffered_world,how='difference')
-    coast_grid.crs = map_eu.crs
-    coast_grid['country'] = country
-    coast_grid['offshore_node']=True
+    # Create bounding box gdf to limit extents of the world buffer. This avoids a problem with reprojection
+    bbox = gpd.GeoDataFrame({'geometry':[shapely.geometry.Polygon([[-2e6,-2e6],[2e6,-2e6],[2e6,2e6],[-2e6,2e6]])]},crs=aeqd)
+    buffered_world = gpd.overlay(world.to_crs(aeqd),bbox,how='intersection')
+    buffered_world['geometry'] = buffered_world.buffer(minimum_offshore_dist*1e3)
+    sea_grid = gpd.overlay(sea_grid,buffered_world.to_crs(map_eu.crs),how='difference')
+    sea_grid['coast_pt'] = sea_grid.to_crs(aeqd).distance(country_geom_aeqd.geometry.item())<=minimum_offshore_dist*1e3
+    sea_grid.crs = map_eu.crs
+    sea_grid['country'] = country
+    sea_grid['sea_node']=True
     # Combine to single df
-    gridded_country = pd.concat([land_grid,coast_grid]).reset_index(drop=True)
+    gridded_country = pd.concat([land_grid,sea_grid]).reset_index(drop=True)
     return gridded_country
 
 def assign_centroids(country_df_raw):
@@ -192,11 +197,11 @@ def assign_centroids(country_df_raw):
             poly_df.to_crs(world.crs,inplace=True)
             # Selects the centroid of the largest geometry in the multipolygon
             centroid = poly_df.sort_values('area',ascending=False).iloc[0]['geometry'].centroid
-            country_df.loc[idx,'centroid_lat'] = centroid.y
-            country_df.loc[idx,'centroid_lon'] = centroid.x
+            country_df.loc[idx,'cent_lat'] = centroid.y
+            country_df.loc[idx,'cent_lon'] = centroid.x
         else:
-            country_df.loc[idx,'centroid_lat'] = row.geometry.centroid.y
-            country_df.loc[idx,'centroid_lon'] = row.geometry.centroid.x
+            country_df.loc[idx,'cent_lat'] = row.geometry.centroid.y
+            country_df.loc[idx,'cent_lon'] = row.geometry.centroid.x
     return country_df
 
 def assign_merra_points(country_df_raw):
@@ -212,7 +217,7 @@ def assign_merra_points(country_df_raw):
     aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=midlat, lon_0=midlon).srs # Create a CRS from the Azimuthal Equidistant project centered on the country's midpoint
    # Duplicate the dataframe and convert each grid cell's centroid to the geometry column
     centroids = country_df.copy()
-    centroids['geometry'] = centroids.apply(lambda x: shapely.geometry.Point(x.centroid_lon,x.centroid_lat),axis=1)
+    centroids['geometry'] = centroids.apply(lambda x: shapely.geometry.Point(x.cent_lon,x.cent_lat),axis=1)
     centroids.to_crs(aeqd,inplace=True)
     # Duplicate the dataframe and convert each grid cell's nominal position to the geometry column
     grid_points = country_df.copy()
@@ -220,7 +225,7 @@ def assign_merra_points(country_df_raw):
     grid_points.to_crs(aeqd,inplace=True)
 
     # For nodes that are offshore (onshore) but have nominal MERRA points that are onshore (offshore), find the index of nearest offshore (onshore) point
-    merra_pts_idxs = centroids.apply(lambda x: grid_points.loc[grid_points.point_offshore==x.offshore_node].distance(x.geometry).idxmin(),axis=1) 
+    merra_pts_idxs = centroids.apply(lambda x: grid_points.loc[grid_points.pt_in_sea==x.sea_node].distance(x.geometry).idxmin(),axis=1) 
     country_df['merra_lat'] = merra_pts_idxs
     # Look up and assign the latitude coordinate of the nearest merra point that lies within the country's borders
     country_df['merra_lat'] = country_df.apply(lambda x: country_df.at[x.merra_lat,'grid_lat'],axis=1) 
@@ -233,12 +238,12 @@ def get_offshore_distance(country_df_raw,europe_df,country):
     ''' Determines the distance (in km) from the centroid of each offshore node to the closest shoreline and saves the result in a new column, "centroid_offshore_dist_km". 
     Note: country_df and country_geometry must have the same CRS!!!'''
     country_df = country_df_raw.copy()
-    # Create an equal distance CRS centered on the centroid fot eh given country
+    # Create an equal distance CRS centered on the centroid for the given country
     country_geom = europe_df.loc[europe_df.country==country,'geometry'].item()
-    centroid_lon = country_geom.centroid.x
-    centroid_lat = country_geom.centroid.y
+    cent_lon = country_geom.centroid.x
+    cent_lat = country_geom.centroid.y
     # The following line is adapted from here: https://automating-gis-processes.github.io/site/2018/notebooks/L2/projections.html
-    aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=centroid_lat, lon_0=centroid_lon).srs # Create a CRS from the Azimuthal Equidistant project centered on the country's centroid
+    aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=cent_lat, lon_0=cent_lon).srs # Create a CRS from the Azimuthal Equidistant project centered on the country's centroid
     
     # Get the geometry of the country in the newly created CRS
     europe_aeqd = europe.to_crs(aeqd)
@@ -246,40 +251,62 @@ def get_offshore_distance(country_df_raw,europe_df,country):
     
     # Convert the nominal grid coordintates to the new CRS in a new geodataframe, "points_df_aeqd"
     points_df = country_df.copy()
-    points_df['geometry'] = points_df.apply(lambda x: shapely.geometry.Point(x.centroid_lon,x.centroid_lat),axis=1)
+    points_df['geometry'] = points_df.apply(lambda x: shapely.geometry.Point(x.cent_lon,x.cent_lat),axis=1)
     points_df_aeqd = points_df.to_crs(aeqd)
     
     # Calculate the distance (in km) from each point to the country's geometry
-    country_df['centroid_offshore_dist_km'] = points_df_aeqd.distance(country_geom_aeqd)/1e3
+    country_df['shore_dist'] = points_df_aeqd.distance(country_geom_aeqd)/1e3
     # Make sure offshore nodes have a distance of at least 5 km
-    country_df.loc[(country_df.offshore_node)&(country_df.centroid_offshore_dist_km<minimum_offshore_dist),'centroid_offshore_dist_km'] = minimum_offshore_dist
+    country_df.loc[(country_df.sea_node)&(country_df.shore_dist<minimum_offshore_dist),'shore_dist'] = minimum_offshore_dist
     
     return country_df
 
 # Run the functions above on all countries and concatenate them to a single dataframe: europe_grid
-europe_grid = gpd.GeoDataFrame()
+# The result may contain offshore nodes that should belong to other countries so it is labeled "unclean"
+europe_grid_unclean = gpd.GeoDataFrame()
 for country in EU_EFTA:
     logger.info(f'Starting processing for {country}...')
     country_df = generated_gridded_country(country,europe)
     country_df = assign_centroids(country_df)
-    country_df = assign_merra_points(country_df) 
-    europe_grid = pd.concat([europe_grid, country_df],ignore_index=True)
+    country_df = assign_merra_points(country_df)
+    country_df = get_offshore_distance(country_df,europe,country)
+    europe_grid_unclean = pd.concat([europe_grid_unclean, country_df],ignore_index=True)
     logger.info(f'{country} finished')
-europe_grid['pv_lat'] = europe_grid['centroid_lat']
-europe_grid['pv_lon'] = europe_grid['centroid_lon']
-europe_grid.loc[europe_grid.offshore_node,['pv_lat','pv_lon']] = np.nan
+
+# Clean the above result by removing nodes that belong to other countries' coasts
+logger.info(f'Cleaning results.')
+europe_grid = europe_grid_unclean.copy()
+for country in EU_EFTA:
+    # Get all offshore points for the country that are not directly along the coast
+    non_coast_offshore = europe_grid_unclean.loc[((europe_grid_unclean.country==country)&(europe_grid_unclean.sea_node)&(~europe_grid_unclean.coast_pt))]
+    # Get all offshore points of all other countries that are along their coasts
+    all_other_coasts = europe_grid_unclean.loc[(europe_grid_unclean.country!=country)&(europe_grid_unclean.coast_pt)]
+    # Find which points in non_coast_offshore are also in all_other_coasts
+    belongs_to_other = non_coast_offshore.apply(lambda x: len(all_other_coasts[(all_other_coasts.grid_lat==x.grid_lat)&(all_other_coasts.grid_lon==x.grid_lon)])>0,axis=1)
+    # Drop the points for the given country that belong to any other country's coast
+    if len(belongs_to_other)>0:
+        europe_grid.drop(belongs_to_other.loc[belongs_to_other].index,inplace=True)
+        logger.info(f'Dropped {belongs_to_other.sum()} nodes in {country} because they belong to the coastline of another country.')
+
+logger.info(f'Results cleaned.')
+
+europe_grid['pv_lat'] = europe_grid['cent_lat']
+europe_grid['pv_lon'] = europe_grid['cent_lon']
+europe_grid.loc[europe_grid.sea_node,['pv_lat','pv_lon']] = np.nan
 europe_grid.to_crs(world.crs,inplace=True)
 europe_grid.reset_index(drop=True,inplace=True)
 
 # Save the points to shapefiles
+logger.info(f'Saving results.')
 europe_grid.to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Grid.shp'))
 
-europe_grid.loc[~europe_grid.offshore_node].reset_index(drop=True).to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Onshore_Evaluation_Grid.shp'))
-europe_grid.loc[europe_grid.offshore_node].reset_index(drop=True).to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Offshore_Evaluation_Grid.shp'))
+europe_grid.loc[~europe_grid.sea_node].reset_index(drop=True).to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Onshore_Evaluation_Grid.shp'))
+europe_grid.loc[europe_grid.sea_node].reset_index(drop=True).to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Offshore_Evaluation_Grid.shp'))
 
 europe_points = europe_grid.copy()
 europe_points['geometry'] = europe_points.apply(lambda x: shapely.geometry.Point(x.grid_lon,x.grid_lat),axis=1)
 europe_points.to_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.shp'))
+europe_points.to_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'))
 
 europe_PV_points = europe_grid.copy()
 europe_PV_points['geometry'] = europe_PV_points.apply(lambda x: shapely.geometry.Point(x.pv_lon,x.pv_lat),axis=1)
@@ -300,7 +327,7 @@ for country in europe_points['country'].unique():
 
 for country in europe_PV_points['country'].unique():
     df = europe_PV_points.loc[europe_PV_points.country==country]
-    df = df.loc[~df.offshore_node].sort_values(['grid_lat','grid_lat']).drop_duplicates(subset=['geometry'])
+    df = df.loc[~df.sea_node].sort_values(['grid_lat','grid_lat']).drop_duplicates(subset=['geometry'])
     pv_points_dict[country] = [(i.geometry.y,i.geometry.x) for _,i in df.iterrows()]
 
 for country in europe_merra_points['country'].unique():
@@ -318,3 +345,5 @@ with open(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_PV_E
     
 with open(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_MERRA_Evaluation_Points.json'), 'w') as fp:
     json.dump(merra_points_dict, fp)
+
+logger.info('Script finished.')
