@@ -184,7 +184,7 @@ for i,point in enumerate(points):
 
     results_df = results_df.append(results_dict,ignore_index=True)
 
-results_df = results_df[['lat','lon','turbine_type','rotor_diameter','rated_turbine_power','wind_turbines',
+results_df = results_df[['lat','lon','shore_designation','turbine_type','rotor_diameter','rated_turbine_power','wind_turbines',
 'wind_capacity_MW','PV_capacity_MW','electrolyzer_capacity_MW','CO2_capture_tonph','heatpump_capacity_MW',
 'battery_capacity_MWh','H2stor_capacity_MWh','CO2stor_capacity_ton','H2tL_capacity_MW','curtailed_el_MWh',
 'wind_production_MWh','PV_production_MWh','NPV_EUR','CAPEX_EUR','LCOF_MWh','LCOF_liter','runtime']]

@@ -467,6 +467,7 @@ def solution_dict(plant):
 
     results_dict['lat'] = plant.site.lat
     results_dict['lon'] = plant.site.lon
+    results_dict['shore_designation'] = plant.site.shore_designation
     results_dict['wind_capacity_MW'] = plant.wind_units * plant.wind.rated_turbine_power / 1e3
     results_dict['wind_turbines'] = plant.wind_units
     results_dict['rated_turbine_power'] = plant.wind.rated_turbine_power
