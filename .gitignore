@@ -5,7 +5,7 @@ cache/
 logs/
 scratch/
 results/
-data/Countries_WGS84/processed/
+# data/Countries_WGS84/processed/
 data/MERRA/
 data/PVGIS/
 data/onshore_turbine_placements-Ryberg_2019/
