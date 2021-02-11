@@ -9,12 +9,12 @@ class CoordinateError(Exception):
         point -- coordinates which caused the error
         wind_or_PV -- the data set in which the point was not found
     '''
-    def __init__(self, point, wind_or_PV):
+    def __init__(self, point, dataset):
         self.point = point
-        self.wind_or_PV = wind_or_PV
+        self.dataset = dataset
         
     def __str__(self):
-        return f'The given point {self.point} was not found in the {self.wind_or_PV} data set.'
+        return f'The given point {self.point} was not found in the {self.dataset} data set.'
 
 class OptimizerError(Exception):
     '''Exception raised when the optimization fails.
