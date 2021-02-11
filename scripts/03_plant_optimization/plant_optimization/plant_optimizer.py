@@ -62,6 +62,7 @@ class Site():
             logger.error(f'The given point ({coordinates}) was not found in the Europe_Evaluation_Points.csv ({self.shore_designation}) dataframe.')
         self.merra_lat = lookup_row.merra_lat.item()
         self.merra_lon = lookup_row.merra_lon.item()
+        self.shore_dist = lookup_row.shore_dist.item() # Distance to the shoreline from the node's centroid [km]
         if wind_data_path == None:
             wind_data_path = os.path.join(SAF_directory,'results','01_merra_wind_preprocessing',country+'.parquet.gzip')
         warnings.simplefilter("ignore", UserWarning)
@@ -130,10 +131,12 @@ class Plant:
         specs = pd.read_excel(specs_path,sheet_name='data',index_col=0)
         component_names = ['wind','PV','battery','electrolyzer','CO2','H2stor','CO2stor','H2tL','heat']
         for component_name in component_names:
-            wind_spcap_class='mid'
+            wind_class='mid'
             if component_name == 'wind' and not site == None:
-                wind_spcap_class = site.wind_data['specific_capacity_class'][0]
-            self.__setattr__(component_name,Component(component_name,specs,wind_class=wind_spcap_class))
+                if site.shore_designation == 'offshore':
+                    wind_class = 'monopole' if site.shore_dist <= 60 else 'floating'
+                wind_class = site.wind_data['specific_capacity_class'][0]
+            self.__setattr__(component_name,Component(component_name,specs,wind_class=wind_class))
 
         self.specs_units={}
         

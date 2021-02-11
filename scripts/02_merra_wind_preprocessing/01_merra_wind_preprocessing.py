@@ -147,8 +147,17 @@ class Turbine(wpl.wind_turbine.WindTurbine):
         else:
             if classifications.loc[classifications.turbine_type==turbine_type,'offshore'].iloc[0] != 1:
                 raise Exception(f'This wind turbine model ({turbine_type}) does not have an offshore variant according to the classification.csv file.')
-            self.costs = Component('wind',specs=component_specs,wind_class='jacket') # Note that we are assuming ALL offshore wind turbines are medium-distance to shore, jacket base types
+            self.monopole_costs = Component('wind',specs=component_specs,wind_class='monopole_costs') 
+            self.floating_costs = Component('wind',specs=component_specs,wind_class='floating_costs') 
         
+    def assign_foundation_costs(self,foundation):
+        if foundation=='monopole':
+            self.costs = self.monopole_costs
+        elif foundation=='floating':
+            self.costs = self.floating_costs
+        else:
+            raise Exception(f'Invalid offshore wind turbine foundation type: {foundation}.')
+
     def reset_hub_height(self):
         self.hub_height = self.jrc_hub_height
         
@@ -321,7 +330,7 @@ def preprocess_df(df,country):
     df_wind.drop(columns=['U10M','V10M','U50M','V50M'],inplace=True)
     return df_wind
 
-def assign_turbine_model(df,optimization_metric='lcoe',shore_designation='onshore'):
+def assign_turbine_model(df,optimization_metric='lcoe',shore_designation='onshore',foundation_type=None):
     '''Calculates hypothetical power output for each turbine model in "models" and returns the model with the most optimal optimization metric value.
     
     Optimization can be performed with any one the following "optimization_metrics":
@@ -344,6 +353,8 @@ def assign_turbine_model(df,optimization_metric='lcoe',shore_designation='onshor
         output = wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value)
         output_sum = sum(output)/1e3 #kWh
         if optimization_metric.lower() == 'lcoe':
+            if shore_designation=='offshore':
+                turbine.assign_foundation_costs(foundation_type)
             metric = costs_NPV(capex=turbine.costs.CAPEX, opex=turbine.costs.OPEX,
                                 discount_rate=component_specs.at['discount_rate', 'value'], lifetime=turbine.costs.lifetime,
                                 capacity=turbine.nominal_power / 1e3) / np.sum([output_sum/(1+component_specs.at['discount_rate', 'value'])**n for n in np.arange(turbine.costs.lifetime+1)])  # EUR/kWh
@@ -388,8 +399,12 @@ def compute_power_output(df):
         # Get shore designation
         is_offshore = europe_merra_points.loc[(europe_merra_points.grid_lat==coords[0])&(europe_merra_points.grid_lon==coords[1]),'pt_in_sea'].iloc[0]
         shore_designation = 'offshore' if is_offshore else 'onshore'
-
-        turbine,output = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric,shore_designation=shore_designation)
+            if is_offshore:
+                shore_dist = europe_merra_points.loc[(europe_merra_points.grid_lat==coords[0])&(europe_merra_points.grid_lon==coords[1]),'shore_dist'].max()
+                foundation_type = 'monopile' if shore_dist <=60 else 'floating'
+            else:
+                foundation_type=None
+        turbine,output = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric,shore_designation=shore_designation,foundation_type=foundation_type)
         # turbine = turbines[shore_designation][optimal_turbine]
         # speed_at_hub = df.loc[coords].v_50m*(turbine.hub_height/50)**df.loc[coords].hellmann
         # output = wpl.power_output.power_curve(speed_at_hub,turbine.power_curve.wind_speed,turbine.power_curve.value) # [Wh]
