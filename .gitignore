@@ -5,6 +5,7 @@ cache/
 logs/
 scratch/
 results/
+scripts/_config.json
 # data/Countries_WGS84/processed/
 data/MERRA/
 data/PVGIS/
