@@ -399,11 +399,11 @@ def compute_power_output(df):
         # Get shore designation
         is_offshore = europe_merra_points.loc[(europe_merra_points.grid_lat==coords[0])&(europe_merra_points.grid_lon==coords[1]),'pt_in_sea'].iloc[0]
         shore_designation = 'offshore' if is_offshore else 'onshore'
-            if is_offshore:
-                shore_dist = europe_merra_points.loc[(europe_merra_points.grid_lat==coords[0])&(europe_merra_points.grid_lon==coords[1]),'shore_dist'].max()
-                foundation_type = 'monopile' if shore_dist <=60 else 'floating'
-            else:
-                foundation_type=None
+        if is_offshore:
+            shore_dist = europe_merra_points.loc[(europe_merra_points.grid_lat==coords[0])&(europe_merra_points.grid_lon==coords[1]),'shore_dist'].max()
+            foundation_type = 'monopile' if shore_dist <=60 else 'floating'
+        else:
+            foundation_type=None
         turbine,output = assign_turbine_model(df.loc[coords],optimization_metric=optimization_metric,shore_designation=shore_designation,foundation_type=foundation_type)
         # turbine = turbines[shore_designation][optimal_turbine]
         # speed_at_hub = df.loc[coords].v_50m*(turbine.hub_height/50)**df.loc[coords].hellmann
@@ -419,6 +419,9 @@ def compute_power_output(df):
 
 def process_country(country):
     '''Extract files to DataFrame, preprocess dataframe, and compute power output for each country in the "countries" list'''
+    if os.path.isfile(os.path.join(results_path,f'{country}.parquet.gzip')):
+        logger.error(f'{country} results already found in results folder. Remove file in order to perform new analysis.')
+        return
     # Create a script_name for caching the interim results: "01_merra_wind_preprocessing_<country>_<script_time>.csv"
     logger.info(f'{country} processing started...')
     cache_file_name = f'{script_name}_{country}_{sstime_string}.csv'
