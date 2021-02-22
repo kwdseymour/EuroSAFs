@@ -23,6 +23,10 @@ from calendar import monthrange
 import json
 import sys
 
+# THE EXACT IMPLICATIONS OF THE FOLLOWING TWO LINES IS UNKNOWN BUT WERE ADDED TO FIX A CONNECTION ISSUE
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
+
 # Get EuroSAFs parent directory 
 SAF_directory = os.path.dirname(__file__)
 for i in range(2):
@@ -339,7 +343,6 @@ establish_connection()
 The number of concurrent prcesses can be increased to decrease the ammount of time required to download all the data.
 If you have slow wifi, try setting it to 4 or 5. If you download too fast, however, the data portal might ban you for a day.'''
 countries = europe_merra_points['country'].unique()
-countries = ['United_Kingdom']
 concurrent_processes = 3
 P = mp.Pool(concurrent_processes)
 P.map(download_country_files,countries)
