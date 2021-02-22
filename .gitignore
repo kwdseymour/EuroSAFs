@@ -8,6 +8,9 @@ results/
 # data/Countries_WGS84/processed/
 data/MERRA/
 data/PVGIS/
+data/MERRA_Max
+data/PVGIS_Max
+data/Countries_WGS84_Max
 data/onshore_turbine_placements-Ryberg_2019/
 .ipynb_checkpoints
 **/.ipynb_checkpoints

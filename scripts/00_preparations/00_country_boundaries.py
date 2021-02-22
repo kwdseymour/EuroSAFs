@@ -131,6 +131,8 @@ def generated_gridded_country(country, map_eu):
     country_geom = map_eu.loc[map_eu.country==country,'geometry'].item()
     cent_lon = country_geom.centroid.x
     cent_lat = country_geom.centroid.y
+    if country=='Spain':
+        cent_lat += 1
     # The following line is adapted from here: https://automating-gis-processes.github.io/site/2018/notebooks/L2/projections.html
     aeqd = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=cent_lat, lon_0=cent_lon).srs # Create a CRS from the Azimuthal Equidistant project centered on the country's centroid
     country_geom_aeqd = map_eu.loc[map_eu.country==country].copy().to_crs(crs=aeqd)
