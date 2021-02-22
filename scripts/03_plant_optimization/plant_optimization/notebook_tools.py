@@ -65,7 +65,8 @@ def plot_plant_operation(plant,xlim=None,fuel_rate=True,figsize=(20,14)):
     axes2.plot(df.index,df.battery_state_kWh/1e3,color='green',label='Battery state [MWh]')
 
     axes[1].set_ylim(min(df.battery_flow_kWh/1e3),max(df.battery_flow_kWh/1e3)*1.3)
-    axes2.set_ylim(min(df.battery_flow_kWh/1e3)/max(df.battery_flow_kWh/1e3)*max(df.battery_state_kWh/1e3),max(df.battery_state_kWh/1e3)*1.3)
+    if df.battery_flow_kWh.max() > 0:
+        axes2.set_ylim(min(df.battery_flow_kWh/1e3)/max(df.battery_flow_kWh/1e3)*max(df.battery_state_kWh/1e3),max(df.battery_state_kWh/1e3)*1.3)
     axes[1].legend(loc='upper left')
     axes2.legend(loc='upper right')
 
@@ -90,6 +91,8 @@ def plot_plant_operation(plant,xlim=None,fuel_rate=True,figsize=(20,14)):
     axes[3].plot(df.index,df.battery_flow_kWh/1e3,color='purple',alpha=0.8,label='Battery charge/discharge rate [MW]')
     axes[3].plot(df.index,df.H2_el_kWh/1e3,color='cyan',alpha=0.8,label='Electricity to electrolyzer [MW]')
     axes[3].plot(df.index,df.CO2_el_kWh/1e3,color='brown',alpha=0.8,label='Electricity to CO2 capture [MW]')
+    axes[3].plot(df.index,df.H2tL_el_kWh/1e3,color='orange',alpha=0.8,label='Electricity to H2tL [MW]')
+    axes[3].plot(df.index,df.heat_el_kWh/1e3,color='red',alpha=0.8,label='Electricity to electric boiler [MW]')
     ## CO2 production
     # axes3 = plt.twinx(axes[3])
     # axes3.plot(df.index,df.CO2_production_ton,color='brown',label='CO2 production rate [tCO2/hr]')
