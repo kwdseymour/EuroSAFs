@@ -48,11 +48,15 @@ script_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 
 desc_text = 'This script runs the plant optimizer for every location in the given country.'
 parser = argparse.ArgumentParser(description=desc_text)
+parser.add_argument('-d','--SAF_directory',
+    help='The path to the "SAFlogistics" directory',)
 parser.add_argument('-c','--country',
     help='The country for which to run the optimization.',
     type=str)
-parser.add_argument('-d','--SAF_directory',
-    help='The path to the "SAFlogistics" directory',)
+parser.add_argument('-y','--year',
+    help='Select which year to select plant assumptions from. Default is 2020.',
+    default=2020,
+    type=int)
 parser.add_argument('-p','--max_processes',
     help='Controls the number of threads to apply to parallel algorithms (of the optimizer)',
     default=None)
@@ -87,6 +91,10 @@ parser.add_argument('-o','--offshore',
     action='store_true',
     help='Calculate offshore points.',
     default=False)
+parser.add_argument('-a','--sensitivity_analysis',
+    action='store_true',
+    help='Generate random paramters for each plant.',
+    default=False)
 args = parser.parse_args()
 
 MIPGap = args.MIPGap
@@ -97,6 +105,8 @@ timelimit = args.time_limit
 bin_number = args.bin_number
 offshore = args.offshore
 onshore = not offshore
+sensitivity = args.sensitivity_analysis
+year = args.year
 bin_size = args.bin_size
 country = args.country
 max_processes = args.max_processes
@@ -116,6 +126,8 @@ if not os.path.isdir(cache_path):
 results_path = os.path.join(SAF_directory,'results',script_name)
 if offshore:
     results_path = os.path.join(results_path,'offshore')
+if sensitivity:
+    results_path = os.path.join(SAF_directory,'results','sensitivity')
 if not os.path.isdir(results_path):
     os.mkdir(results_path)
 if save_operation:
@@ -140,35 +152,44 @@ if max_processes == None:
     max_processes = cores_avail - 1
     logger.info(f'Max processes parameter not set. Using {max_processes} cores.')
 
-europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
-points = europe_points.loc[europe_points.country==country].set_index(['grid_lat','grid_lon'])
-if onshore and not offshore:
-    points = points.loc[~points.sea_node]
-elif not onshore and offshore:
-    points = points.loc[points.sea_node]
-elif onshore and offshore:
-    pass
+if sensitivity:
+    if onshore:
+        sensitivity_points = pd.read_csv(os.path.join(SAF_directory,'scripts/sensitivity/eval_points_onshore.csv'),index_col=0)
+    else:
+        sensitivity_points = pd.read_csv(os.path.join(SAF_directory,'scripts/sensitivity/eval_points_offshore.csv'),index_col=0)
+    eval_points = sensitivity_points.set_index(['grid_lat','grid_lon'])
 else:
-    print('Either onshore or offshore must be set to TRUE')
-points = list(points.index.unique())
+    europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
+    eval_points = europe_points.loc[europe_points.country==country].set_index(['grid_lat','grid_lon'])
 
-bin_count = int(np.ceil(len(points)/bin_size))
+if onshore:
+    eval_points = eval_points.loc[~eval_points.sea_node]
+else:
+    eval_points = eval_points.loc[eval_points.sea_node]
+
+bin_count = int(np.ceil(len(eval_points)/bin_size))
 bin_string = f'_{bin_number}-{bin_count}'
-points = points[(bin_number-1)*bin_size:bin_number*bin_size]
+points_slice = eval_points.iloc[(bin_number-1)*bin_size:bin_number*bin_size]
 
 if os.path.isfile(os.path.join(results_path,country+bin_string+'.csv')):
     logger.error(f'{country} results already found in results folder. Remove file in order to perform new analysis.')
     sys.exit()
 
 results_df = pd.DataFrame()
+
+points = list(points_slice.index)
 for i,point in enumerate(points):
     # with open(eval_points_path,'r') as fp:
     #     eval_points_str = fp.read()
     # if str(point) not in eval_points_str:
     logger.info(f'Starting {country} point {i+1} of {len(points)}.')
     try:
-        site = pop.Site(point,country,offshore=offshore)
-        plant = pop.Plant(site)
+        if sensitivity:
+            eval_country = points_slice.iloc[i]['country']
+        else:
+            eval_country = country
+        site = pop.Site(point,eval_country,offshore=offshore)
+        plant = pop.Plant(site=site,year=year,sensitivity=sensitivity)
         pop.optimize_plant(plant,threads=max_processes,MIPGap=MIPGap,timelimit=timelimit,DisplayInterval=DisplayInterval,silent=silent_optimizer)
         try:
             pop.unpack_design_solution(plant, unpack_operation=True)
@@ -183,6 +204,7 @@ for i,point in enumerate(points):
         continue
     try:
         results_dict = pop.solution_dict(plant)
+        results_dict.update(dict(plant.specs.value))
         with open(eval_points_path,'a') as fp:
             fp.write(f'\n{country} point {point}: success.')
     except pop.plant_optimizer.CoordinateError as e:
@@ -203,10 +225,10 @@ for i,point in enumerate(points):
 
     results_df = results_df.append(results_dict,ignore_index=True)
 
-results_df = results_df[['lat','lon','shore_designation','turbine_type','rotor_diameter','rated_turbine_power','wind_turbines',
-'wind_capacity_MW','PV_capacity_MW','electrolyzer_capacity_MW','CO2_capture_tonph','heatpump_capacity_MW',
-'battery_capacity_MWh','H2stor_capacity_MWh','CO2stor_capacity_ton','H2tL_capacity_MW','curtailed_el_MWh',
-'wind_production_MWh','PV_production_MWh','NPV_EUR','CAPEX_EUR','LCOF_MWh','LCOF_liter','runtime']]
+# results_df = results_df[['lat','lon','shore_designation','turbine_type','rotor_diameter','rated_turbine_power','wind_turbines',
+# 'wind_capacity_MW','PV_capacity_MW','electrolyzer_capacity_MW','CO2_capture_tonph','heatpump_capacity_MW',
+# 'battery_capacity_MWh','H2stor_capacity_MWh','CO2stor_capacity_ton','H2tL_capacity_MW','curtailed_el_MWh',
+# 'wind_production_MWh','PV_production_MWh','NPV_EUR','CAPEX_EUR','LCOF_MWh','LCOF_liter','runtime']]
 
 results_df.to_csv(os.path.join(results_path,country+bin_string+'.csv'))
 
