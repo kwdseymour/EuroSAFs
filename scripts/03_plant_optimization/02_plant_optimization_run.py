@@ -18,6 +18,10 @@ parser.add_argument('-o','--offshore',
     action='store_true',
     help='Calculate offshore points.',
     default=False)
+parser.add_argument('-y','--year',
+    help='Select which year to select plant assumptions from. Default is 2020.',
+    default=2020,
+    type=int)
 parser.add_argument('-n','--bin_size',
     help='The maximum number of points that will be evaluated for each job.',
     default=50,
@@ -27,6 +31,7 @@ args = parser.parse_args()
 SAF_directory = args.SAF_directory
 offshore = args.offshore
 onshore = not offshore
+year = args.year
 bin_size = args.bin_size
 
 cores = 32
@@ -41,7 +46,7 @@ if SAF_directory == None:
 results_path = os.path.join(SAF_directory,'results','02_plant_optimization')
 if offshore:
     results_path = os.path.join(results_path,'offshore')
-    offshore_flag = '-o'
+    offshore_flag = '--offshore'
 else:
     offshore_flag = ''
 
@@ -74,7 +79,18 @@ for country in countries:
             print(f'{file_path} already exists. Delete file to run this set.')
             continue
             
-        bash_str = f'bsub -n {cores} -W {wall_time} -J "{country}-{i}" -oo {results_path}/lsf.{country}-{i}.txt python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s {offshore_flag}'
+        bash_str = f'bsub -n {cores} -W {wall_time} -J "{country}-{i}" -oo {results_path}/lsf.{country}-{i}.txt '\
+            f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py '\
+            f'--SAF_directory {SAF_directory} '\
+            f'--country {country} '\
+            f'--year {year} '\
+            f'--bin_number {i} '\
+            f'--bin_size {bin_size} '\
+            f'--MIPGap {MIPGap} '\
+            f'--DisplayInterval {DisplayInterval} '\
+            f'{offshore_flag}'\
+            f'--save_operation '\
+            f'--verbose '\
         # bash_str = f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
         # bash_str = f'python $HOME/GitHub/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/GitHub/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
         os.system(bash_str)
