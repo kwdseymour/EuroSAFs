@@ -56,16 +56,13 @@ parser.add_argument('-d','--SAF_directory',
 parser.add_argument('-p','--max_processes',
     help='Controls the number of threads to apply to parallel algorithms (of the optimizer)',
     default=None)
-parser.add_argument('-n','--bin_size',
-    help='The maximum number of points that will be evaluated for the given country.',
-    type=int)
 parser.add_argument('-b','--bin_number',
-    help='Indicates which bin of coordinates from the country to evaluate',
+    help='Chooses which coordinates from the country to evaluate',
     default=1,
     type=int)
 parser.add_argument('-t','--time_limit',
     help='Sets the time limit of the optimizer (seconds)',
-    default=3000,
+    default=2000,
     type=int)
 parser.add_argument('-m','--MIPGap',
     help='Sets the MIP gap of the optimizer',
@@ -83,10 +80,6 @@ parser.add_argument('-s','--save_operation',
     action='store_true',
     help='Saves the plant operation data to an operations folder in the results folder.',
     default=False)
-parser.add_argument('-o','--offshore',
-    action='store_true',
-    help='Calculate offshore points.',
-    default=False)
 args = parser.parse_args()
 
 MIPGap = args.MIPGap
@@ -95,9 +88,7 @@ silent_optimizer = not(args.verbose_optimizer)
 save_operation = args.save_operation
 timelimit = args.time_limit
 bin_number = args.bin_number
-offshore = args.offshore
-onshore = not offshore
-bin_size = args.bin_size
+bin_size = 100
 country = args.country
 max_processes = args.max_processes
 SAF_directory = args.SAF_directory
@@ -114,8 +105,6 @@ cache_path = os.path.join(scratch_path,'cache')
 if not os.path.isdir(cache_path):
     os.mkdir(cache_path)
 results_path = os.path.join(SAF_directory,'results',script_name)
-if offshore:
-    results_path = os.path.join(results_path,'offshore')
 if not os.path.isdir(results_path):
     os.mkdir(results_path)
 if save_operation:
@@ -134,53 +123,40 @@ popt_logger = logging.getLogger('plant_optimization.plant_optimizer')
 popt_logger.addHandler(logger.handlers[0])
 popt_logger.addHandler(logger.handlers[1])
 
+if os.path.isfile(os.path.join(results_path,country+'.csv')):
+    logger.error(f'{country} results already found in results folder. Remove file in order to perform new analysis.')
+    sys.exit()
+
 cores_avail = multiprocessing.cpu_count()
 logger.info(f'{cores_avail} cores available')
 if max_processes == None:
     max_processes = cores_avail - 1
     logger.info(f'Max processes parameter not set. Using {max_processes} cores.')
 
-europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
-points = europe_points.loc[europe_points.country==country].set_index(['grid_lat','grid_lon'])
-if onshore and not offshore:
-    points = points.loc[~points.sea_node]
-elif not onshore and offshore:
-    points = points.loc[points.sea_node]
-elif onshore and offshore:
-    pass
-else:
-    print('Either onshore or offshore must be set to TRUE')
-points = list(points.index.unique())
-
+results_df = pd.DataFrame()
+points = pop.get_country_points(country)
 bin_count = int(np.ceil(len(points)/bin_size))
 bin_string = f'_{bin_number}-{bin_count}'
 points = points[(bin_number-1)*bin_size:bin_number*bin_size]
-
-if os.path.isfile(os.path.join(results_path,country+bin_string+'.csv')):
-    logger.error(f'{country} results already found in results folder. Remove file in order to perform new analysis.')
-    sys.exit()
-
-results_df = pd.DataFrame()
 for i,point in enumerate(points):
     # with open(eval_points_path,'r') as fp:
     #     eval_points_str = fp.read()
     # if str(point) not in eval_points_str:
-    logger.info(f'Starting {country} point {i+1} of {len(points)}.')
     try:
-        site = pop.Site(point,country,offshore=offshore)
+        site = pop.Site(point,country)
         plant = pop.Plant(site)
         pop.optimize_plant(plant,threads=max_processes,MIPGap=MIPGap,timelimit=timelimit,DisplayInterval=DisplayInterval,silent=silent_optimizer)
         try:
             pop.unpack_design_solution(plant, unpack_operation=True)
         except:
             logger.error(f'There was a problem unpacking the optimizer model for point({point}) in {country}.')
-            continue
+            raise Exception('1')
     except pop.errors.CoordinateError:
         logger.error(f'Coordinate error for point ({point}) in {country}.')
         continue
     except:
         logger.error(f'Optimization problem for point ({point}) in {country}.')
-        continue
+        raise Exception('2')
     try:
         results_dict = pop.solution_dict(plant)
         with open(eval_points_path,'a') as fp:
@@ -199,11 +175,11 @@ for i,point in enumerate(points):
             fp.write(f'\n{country} point {point}: {e}')
 
     if save_operation:
-        plant.operation.to_parquet(os.path.join(operations_path,f'{country}_{site.lat}_{site.lon}_{site.shore_designation}.parquet.gzip'),compression='gzip')
+        plant.operation.to_parquet(os.path.join(operations_path,f'{country}_{site.lat}_{site.lon}.parquet.gzip'),compression='gzip')
 
     results_df = results_df.append(results_dict,ignore_index=True)
 
-results_df = results_df[['lat','lon','shore_designation','turbine_type','rotor_diameter','rated_turbine_power','wind_turbines',
+results_df = results_df[['lat','lon','turbine_type','rotor_diameter','rated_turbine_power','wind_turbines',
 'wind_capacity_MW','PV_capacity_MW','electrolyzer_capacity_MW','CO2_capture_tonph','heatpump_capacity_MW',
 'battery_capacity_MWh','H2stor_capacity_MWh','CO2stor_capacity_ton','H2tL_capacity_MW','curtailed_el_MWh',
 'wind_production_MWh','PV_production_MWh','NPV_EUR','CAPEX_EUR','LCOF_MWh','LCOF_liter','runtime']]
