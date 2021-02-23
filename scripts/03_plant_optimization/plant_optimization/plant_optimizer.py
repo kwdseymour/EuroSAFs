@@ -96,8 +96,7 @@ class Component:
     An object of this class must be initialized with a DataFrame (specs argument) imported from the /data/plant_assumptions.xlsx file.
     The sheet contains cost and performance assumptions for all plant components.
     '''
-    def __init__(self,name,specs,wind_class=None,year=2020,sensitivity=False):
-        self.year = year
+    def __init__(self,name,specs,wind_class=None,sensitivity=False):
         self.specs_units={}
         component_specs = specs.loc[specs.index.str.contains(name+'_')].index
         for spec in component_specs:
@@ -105,13 +104,7 @@ class Component:
             if name=='wind':
                 spec_name = spec_name.replace(wind_class+'_','')
                 self.wind_class = wind_class
-            max_val = specs.at[spec,'sensitivity_max']
-            min_val = specs.at[spec,'sensitivity_min']
-            if sensitivity and not np.isnan(max_val) and not np.isnan(min_val):
-                rand_val = round(np.random.uniform(max_val,min_val),5)
-                self.__setattr__(spec_name,rand_val)
-            else:
-                self.__setattr__(spec_name,specs.at[spec,f'value_{year}'])
+            self.__setattr__(spec_name,specs.at[spec,'value'])
             self.specs_units[spec_name] = specs.at[spec,'units']
     
     def spec_units(self,spec):
@@ -135,6 +128,14 @@ class Plant:
         if specs_path == None:
             specs_path = os.path.join(SAF_directory,'data','plant_assumptions.xlsx')
         specs = pd.read_excel(specs_path,sheet_name='data',index_col=0)
+        if not sensitivity:
+            specs['value'] = specs[f'value_{year}']
+        else:
+            if year!=2020:
+                logger.error('Sensitivity analysis cannot be performed on years other than 2020. Change the plant initialization year to 2020. The parameters selected now are from the 2020 sensitivity anyway.')
+            specs['value'] = specs.apply(lambda x: x.value_2020 if any((np.isnan(x.sensitivity_min),np.isnan(x.sensitivity_max))) else round(np.random.normal(x.value_2020,(x.sensitivity_max-x.value_2020)/3),5),axis=1)    
+        self.specs = specs
+
         component_names = ['wind','PV','battery','electrolyzer','CO2','H2stor','CO2stor','H2tL','heat']
         for component_name in component_names:
             wind_class='mid'
@@ -142,7 +143,7 @@ class Plant:
                 if site.shore_designation == 'offshore':
                     wind_class = 'monopole' if site.shore_dist <= 60 else 'floating'
                 wind_class = site.wind_data['specific_capacity_class'][0]
-            self.__setattr__(component_name,Component(component_name,specs,wind_class=wind_class,year=year,sensitivity=sensitivity))
+            self.__setattr__(component_name,Component(component_name,specs,wind_class=wind_class,sensitivity=sensitivity))
 
         self.specs_units={}
         
@@ -478,6 +479,7 @@ def solution_dict(plant):
     results_dict['rated_turbine_power'] = plant.wind.rated_turbine_power
     results_dict['rotor_diameter'] = plant.wind.rotor_diameter
     results_dict['turbine_type'] = plant.wind.turbine_type
+    results_dict['wind_class'] = plant.wind.wind_class
     results_dict['PV_capacity_MW'] = plant.PV_capacity_kW / 1e3
     results_dict['electrolyzer_capacity_MW'] = plant.electrolyzer_capacity_kW / 1e3
     results_dict['CO2_capture_tonph'] = plant.CO2_capacity_kgph / 1e3  # tons of CO2 per hour
