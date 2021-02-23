@@ -25,7 +25,6 @@ from gurobipy import *
 import matplotlib.pyplot as plt
 import warnings
 import logging
-import geopandas as gpd
 from .errors import *
 from .utilities import create_logger
 
@@ -83,7 +82,7 @@ class Site():
         warnings.simplefilter("default", UserWarning)
         wind_data.sort_index(inplace=True)
         
-        if coordinates not in wind_data.index.droplevel(2).unique():
+        if (self.merra_lat,self.merra_lon) not in wind_data.index.droplevel(2).unique():
             raise CoordinateError(coordinates,f'wind ({self.shore_designation})')
             logger.error(f'The given point ({coordinates}) was not found in the wind ({self.shore_designation}) dataframe.')
         self.wind_data =  wind_data.loc[idx[self.merra_lat,self.merra_lon]]
@@ -97,7 +96,7 @@ class Component:
     An object of this class must be initialized with a DataFrame (specs argument) imported from the /data/plant_assumptions.xlsx file.
     The sheet contains cost and performance assumptions for all plant components.
     '''
-    def __init__(self,name,specs,wind_class=None,year=2020):
+    def __init__(self,name,specs,wind_class=None,year=2020,sensitivity=False):
         self.year = year
         self.specs_units={}
         component_specs = specs.loc[specs.index.str.contains(name+'_')].index
@@ -106,7 +105,13 @@ class Component:
             if name=='wind':
                 spec_name = spec_name.replace(wind_class+'_','')
                 self.wind_class = wind_class
-            self.__setattr__(spec_name,specs.at[spec,f'value_{year}'])
+            max_val = specs.at[spec,'sensitivity_max']
+            min_val = specs.at[spec,'sensitivity_min']
+            if sensitivity and not np.isnan(max_val) and not np.isnan(min_val):
+                rand_val = round(np.random.uniform(max_val,min_val),5)
+                self.__setattr__(spec_name,rand_val)
+            else:
+                self.__setattr__(spec_name,specs.at[spec,f'value_{year}'])
             self.specs_units[spec_name] = specs.at[spec,'units']
     
     def spec_units(self,spec):
@@ -123,7 +128,7 @@ class Plant:
     In this case, the rated trubine power specification will be added.
 
     '''
-    def __init__(self,site=None,specs_path=None,year=2020):
+    def __init__(self,site=None,specs_path=None,year=2020,sensitivity=False):
         self.year = year
         self.solved=False
         self.site=site
@@ -137,7 +142,7 @@ class Plant:
                 if site.shore_designation == 'offshore':
                     wind_class = 'monopole' if site.shore_dist <= 60 else 'floating'
                 wind_class = site.wind_data['specific_capacity_class'][0]
-            self.__setattr__(component_name,Component(component_name,specs,wind_class=wind_class))
+            self.__setattr__(component_name,Component(component_name,specs,wind_class=wind_class,year=year,sensitivity=sensitivity))
 
         self.specs_units={}
         
