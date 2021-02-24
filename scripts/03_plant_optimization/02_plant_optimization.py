@@ -205,6 +205,7 @@ for i,point in enumerate(points):
     try:
         results_dict = pop.solution_dict(plant)
         results_dict.update(dict(plant.specs.value))
+        results_dict['country'] = eval_country
         with open(eval_points_path,'a') as fp:
             fp.write(f'\n{country} point {point}: success.')
     except pop.plant_optimizer.CoordinateError as e:
