@@ -133,7 +133,9 @@ class Plant:
         else:
             if year!=2020:
                 logger.error('Sensitivity analysis cannot be performed on years other than 2020. Change the plant initialization year to 2020. The parameters selected now are from the 2020 sensitivity anyway.')
-            specs['value'] = specs.apply(lambda x: x.value_2020 if any((np.isnan(x.sensitivity_min),np.isnan(x.sensitivity_max))) else round(np.random.normal(x.value_2020,(x.sensitivity_max-x.value_2020)/3),5),axis=1)    
+            # specs['value'] = specs.apply(lambda x: x.value_2020 if any((np.isnan(x.sensitivity_min),np.isnan(x.sensitivity_max))) else round(np.random.normal(x.value_2020,(x.sensitivity_max-x.value_2020)/3),5),axis=1)    
+            # Assign a random spec value according to a normal distribution with 99.7% bounds at +/-20% of the 2020 value ()
+            specs['value'] = specs.apply(lambda x: x.value_2020 if any((np.isnan(x.sensitivity_min),np.isnan(x.sensitivity_max))) else round(np.random.normal(x.value_2020,(x.value_2020*.2)/3),5),axis=1)    
         self.specs = specs
 
         component_names = ['wind','PV','battery','electrolyzer','CO2','H2stor','CO2stor','H2tL','heat']
