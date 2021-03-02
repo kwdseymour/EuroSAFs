@@ -130,6 +130,8 @@ class Plant:
         specs = pd.read_excel(specs_path,sheet_name='data',index_col=0)
         if not sensitivity:
             specs['value'] = specs[f'value_{year}']
+            # If any specs are not specified for the given year, take the 2020 value
+            specs.loc[specs.value.isna(),'value'] = specs.loc[specs.value.isna(),'value_2020']
         else:
             if year!=2020:
                 logger.error('Sensitivity analysis cannot be performed on years other than 2020. Change the plant initialization year to 2020. The parameters selected now are from the 2020 sensitivity anyway.')
@@ -151,7 +153,7 @@ class Plant:
         
         for i in specs.index:
             if all(x not in i for x in component_names):
-                self.__setattr__(i,specs.at[i,f'value_{year}'])
+                self.__setattr__(i,specs.at[i,f'value'])
                 self.specs_units[i] = specs.at[i,'units']
         if not self.site == None:
             self.site = site
