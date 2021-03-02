@@ -123,7 +123,7 @@ if not os.path.isdir(logs_path):
 cache_path = os.path.join(scratch_path,'cache')
 if not os.path.isdir(cache_path):
     os.mkdir(cache_path)
-results_path = os.path.join(SAF_directory,'results',script_name)
+results_path = os.path.join(SAF_directory,'results',script_name,str(year))
 if offshore:
     results_path = os.path.join(results_path,'offshore')
 if sensitivity:

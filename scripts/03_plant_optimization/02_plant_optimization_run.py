@@ -43,7 +43,9 @@ DisplayInterval = 30
 if SAF_directory == None:
     SAF_directory = os.environ['HOME']
     SAF_directory = os.path.join(SAF_directory,'EuroSAFs')
-results_path = os.path.join(SAF_directory,'results','02_plant_optimization')
+results_path = os.path.join(SAF_directory,'results','02_plant_optimization',str(year))
+if not os.path.isdir(results_path):
+    os.mkdir(results_path)
 if offshore:
     results_path = os.path.join(results_path,'offshore')
     offshore_flag = '--offshore'
