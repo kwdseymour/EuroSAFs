@@ -151,10 +151,7 @@ if max_processes == None:
     logger.info(f'Max processes parameter not set. Using {max_processes} cores.')
 
 if sensitivity:
-    if onshore:
-        sensitivity_points = pd.read_csv(os.path.join(SAF_directory,'scripts/sensitivity/eval_points_onshore.csv'),index_col=0)
-    else:
-        sensitivity_points = pd.read_csv(os.path.join(SAF_directory,'scripts/sensitivity/eval_points_offshore.csv'),index_col=0)
+    sensitivity_points = pd.read_csv(os.path.join(results_path,'eval_points.csv'),index_col=0)
     eval_points = sensitivity_points.set_index(['grid_lat','grid_lon'])
 else:
     europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)

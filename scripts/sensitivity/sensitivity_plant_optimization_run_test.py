@@ -1,4 +1,4 @@
-# python scripts/sensitivity/sensitivity_plant_optimization_run.py -d . -n 1 -s 10
+# python scripts/sensitivity/sensitivity_plant_optimization_run_test.py -d . -s 3
 
 import os
 import sys
@@ -35,7 +35,7 @@ onshore = not offshore
 bin_size = args.bin_size
 sample_size = args.sample_size
 
-cores = 4
+cores = 8
 wall_time = '3:00'
 MIPGap = 0.01
 DisplayInterval = 30
@@ -65,10 +65,7 @@ points_set = europe_points.loc[europe_points.sea_node==offshore]
 
 rand_idxs = random.sample(list(points_set.index),sample_size)
 eval_points = points_set.loc[rand_idxs].sort_index()
-if offshore:
-    eval_points.to_csv(os.path.join(SAF_directory,'scripts/sensitivity/eval_points_offshore.csv'))
-else:
-    eval_points.to_csv(os.path.join(SAF_directory,'scripts/sensitivity/eval_points_onshore.csv'))
+eval_points.to_csv(os.path.join(results_path,'eval_points.csv'))
 points = list(eval_points.index.unique())
 time.sleep(1)
 
