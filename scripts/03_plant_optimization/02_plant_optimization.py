@@ -50,6 +50,8 @@ desc_text = 'This script runs the plant optimizer for every location in the give
 parser = argparse.ArgumentParser(description=desc_text)
 parser.add_argument('-d','--SAF_directory',
     help='The path to the "SAFlogistics" directory',)
+parser.add_argument('-r','--results_path',
+    help='The path to the directory where the results should be stored',)
 parser.add_argument('-c','--country',
     help='The country for which to run the optimization.',
     type=str)
@@ -111,6 +113,7 @@ bin_size = args.bin_size
 country = args.country
 max_processes = args.max_processes
 SAF_directory = args.SAF_directory
+results_path = args.results_path
 if 'cluster/home' in os.getcwd():
     scratch_path = os.environ['SCRATCH']
 else:
@@ -123,11 +126,6 @@ if not os.path.isdir(logs_path):
 cache_path = os.path.join(scratch_path,'cache')
 if not os.path.isdir(cache_path):
     os.mkdir(cache_path)
-results_path = os.path.join(SAF_directory,'results',script_name,str(year))
-if offshore:
-    results_path = os.path.join(results_path,'offshore')
-if sensitivity:
-    results_path = os.path.join(SAF_directory,'results','sensitivity')
 if not os.path.isdir(results_path):
     os.mkdir(results_path)
 if save_operation:

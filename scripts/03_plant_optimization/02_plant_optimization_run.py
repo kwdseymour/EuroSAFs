@@ -7,6 +7,7 @@ import numpy as np
 import argparse
 import time
 import pandas as pd
+import git
 
 desc_text = 'This script submits jobs to run all optimizations for all countries.'
 parser = argparse.ArgumentParser(description=desc_text)
@@ -43,14 +44,21 @@ DisplayInterval = 30
 if SAF_directory == None:
     SAF_directory = os.environ['HOME']
     SAF_directory = os.path.join(SAF_directory,'EuroSAFs')
-results_path = os.path.join(SAF_directory,'results','02_plant_optimization',str(year))
-if not os.path.isdir(results_path):
-    os.mkdir(results_path)
+try:
+    repo = git.Repo(search_parent_directories=True)
+    git_sha = repo.head.object.hexsha
+    git_sha_str = git_sha[:7]+'_'
+except:
+    git_sha_str = ''
+results_path = os.path.join(SAF_directory,'results','02_plant_optimization',git_sha_str+str(year))
 if offshore:
     results_path = os.path.join(results_path,'offshore')
     offshore_flag = '--offshore'
 else:
+    results_path = os.path.join(results_path,'onshore')
     offshore_flag = ''
+if not os.path.isdir(results_path):
+    os.mkdir(results_path)
 
 europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
 countries = europe_points.country.unique()
@@ -84,6 +92,7 @@ for country in countries:
         bash_str = f'bsub -n {cores} -W {wall_time} -J "{country}-{i}" -oo {results_path}/lsf.{country}-{i}.txt '\
             f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py '\
             f'--SAF_directory {SAF_directory} '\
+            f'--results_path {results_path}'\
             f'--country {country} '\
             f'--year {year} '\
             f'--bin_number {i} '\

@@ -7,6 +7,7 @@ import argparse
 import time
 import pandas as pd
 import random
+import git
 
 desc_text = 'This script submits jobs to run the sensitivity analysis.'
 parser = argparse.ArgumentParser(description=desc_text)
@@ -34,12 +35,6 @@ onshore = not offshore
 bin_size = args.bin_size
 sample_size = args.sample_size
 
-if offshore:
-    results_path = os.path.join(results_path,'offshore')
-    offshore_flag = '--offshore'
-else:
-    offshore_flag = ''
-
 cores = 32
 wall_time = '30:00'
 MIPGap = 0.01
@@ -48,7 +43,20 @@ DisplayInterval = 30
 if SAF_directory == None:
     SAF_directory = os.environ['HOME']
     SAF_directory = os.path.join(SAF_directory,'EuroSAFs')
-results_path = os.path.join(SAF_directory,'results','sensitivity')
+try:
+    repo = git.Repo(search_parent_directories=True)
+    git_sha = repo.head.object.hexsha
+    git_sha_str = git_sha[:7]+'_'
+except:
+    git_sha_str = ''
+results_path = os.path.join(SAF_directory,'results','02_plant_optimization',git_sha_str+'sensitivity')
+if offshore:
+    results_path = os.path.join(results_path,'offshore')
+    offshore_flag = '--offshore'
+else:
+    results_path = os.path.join(results_path,'onshore')
+    offshore_flag = ''
+
 if not os.path.isdir(results_path):
     os.mkdir(results_path)
 
@@ -71,6 +79,7 @@ for i in range(bins):
     bash_str = f'bsub -n {cores} -W {wall_time} -J "sensitivity-{i}" -oo {results_path}/lsf.sensitivity-{i}.txt '\
             f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py '\
             f'--SAF_directory {SAF_directory} '\
+            f'--results_path {results_path}'\
             f'--country sensitivity '\
             f'--year 2020 '\
             f'--bin_number {i} '\
