@@ -500,6 +500,7 @@ def solution_dict(plant):
     results_dict['wind_production_MWh'] = plant.operation.wind_production_kWh.sum() / 1e3
     results_dict['PV_production_MWh'] = plant.operation.PV_production_kWh.sum() / 1e3
     #results_dict['MIPGap'] = plant.m.MIPGap
+    results_dict['fuel_production_MWh'] = plant.fuel_production_kWh.sum() / 1e3
     results_dict['runtime'] = plant.m.runtime
 
     return results_dict
