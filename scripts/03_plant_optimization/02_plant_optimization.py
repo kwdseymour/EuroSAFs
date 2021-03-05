@@ -51,7 +51,8 @@ parser = argparse.ArgumentParser(description=desc_text)
 parser.add_argument('-d','--SAF_directory',
     help='The path to the "SAFlogistics" directory',)
 parser.add_argument('-r','--results_path',
-    help='The path to the directory where the results should be stored',)
+    help='The path to the directory where the results should be stored',
+    type=str)
 parser.add_argument('-c','--country',
     help='The country for which to run the optimization.',
     type=str)

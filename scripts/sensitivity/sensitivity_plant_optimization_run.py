@@ -74,7 +74,7 @@ bins = int(np.ceil(len(eval_points)/bin_size))
 for i in range(bins):
     i+=1
     bash_str = f'bsub -n {cores} -W {wall_time} -J "sensitivity-{i}" -oo {results_path}/lsf.sensitivity-{i}.txt '\
-            f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py '\
+            f'python {SAF_directory}/scripts/03_plant_optimization/02_plant_optimization.py '\
             f'--SAF_directory {SAF_directory} '\
             f'--results_path {results_path} '\
             f'--country sensitivity '\

@@ -91,7 +91,7 @@ for country in countries:
             continue
             
         bash_str = f'bsub -n {cores} -W {wall_time} -J "{country}-{i}" -oo {results_path}/lsf.{country}-{i}.txt '\
-            f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py '\
+            f'python {SAF_directory}/scripts/03_plant_optimization/02_plant_optimization.py '\
             f'--SAF_directory {SAF_directory} '\
             f'--results_path {results_path} '\
             f'--country {country} '\
