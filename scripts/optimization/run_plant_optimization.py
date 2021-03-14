@@ -40,7 +40,7 @@ cores = 32 # Number of cores requested for each job
 wall_time = '30:00' # Wall time requested for each job
 
 # Set optimizer parameters
-MIPGap = 0.01
+MIPGap = 1
 DisplayInterval = 30 # This sets how frequently Gurobi prints the optimizer progress
 
 # Define path to primary directory
@@ -72,7 +72,7 @@ if not os.path.isdir(results_path):
 # Get all evaluation points
 europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
 countries = europe_points.country.unique()
-# countries = ['Spain']
+# countries = ['Switzerland']
 
 
 # loop through the countries list: 
