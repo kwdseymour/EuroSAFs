@@ -1,5 +1,5 @@
-# python scripts/03_plant_optimization/02_plant_optimization_run.py
-# python scripts/03_plant_optimization/02_plant_optimization_run.py -o
+# python scripts/optimization/plant_optimization_run.py
+# python scripts/optimization/plant_optimization_run.py -o
 
 import os
 import sys
@@ -50,7 +50,7 @@ try:
     git_sha_str = git_sha[:7]+'_'
 except:
     git_sha_str = ''
-results_path = os.path.join(SAF_directory,'results','02_plant_optimization',git_sha_str+str(year))
+results_path = os.path.join(SAF_directory,'results','plant_optimization',git_sha_str+str(year))
 
 if offshore:
     results_path = os.path.join(results_path,'offshore')
@@ -91,7 +91,7 @@ for country in countries:
             continue
             
         bash_str = f'bsub -n {cores} -W {wall_time} -J "{country}-{i}" -oo {results_path}/lsf.{country}-{i}.txt '\
-            f'python {SAF_directory}/scripts/03_plant_optimization/02_plant_optimization.py '\
+            f'python {SAF_directory}/scripts/optimization/plant_optimization.py '\
             f'--SAF_directory {SAF_directory} '\
             f'--results_path {results_path} '\
             f'--country {country} '\

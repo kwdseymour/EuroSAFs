@@ -1,4 +1,5 @@
-# python scripts/sensitivity/sensitivity_plant_optimization_run.py -d . -n 1 -s 10
+# python scripts/optimization/sensitivity_plant_optimization_run.py -d . -n 1 -s 10
+# python scripts/optimization/sensitivity_plant_optimization_run.py -d $HOME/EuroSAFs -s 1000
 
 import os
 import sys
@@ -49,7 +50,7 @@ try:
     git_sha_str = git_sha[:7]+'_'
 except:
     git_sha_str = ''
-results_path = os.path.join(SAF_directory,'results','02_plant_optimization',git_sha_str+'sensitivity')
+results_path = os.path.join(SAF_directory,'results','plant_optimization',git_sha_str+'sensitivity')
 
 if offshore:
     results_path = os.path.join(results_path,'offshore')
@@ -74,7 +75,7 @@ bins = int(np.ceil(len(eval_points)/bin_size))
 for i in range(bins):
     i+=1
     bash_str = f'bsub -n {cores} -W {wall_time} -J "sensitivity-{i}" -oo {results_path}/lsf.sensitivity-{i}.txt '\
-            f'python {SAF_directory}/scripts/03_plant_optimization/02_plant_optimization.py '\
+            f'python {SAF_directory}/scripts/optimization/plant_optimization.py '\
             f'--SAF_directory {SAF_directory} '\
             f'--results_path {results_path} '\
             f'--country sensitivity '\

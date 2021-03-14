@@ -1,14 +1,17 @@
+# python scripts/data_preparation/MERRA_download.py
+ 
 '''
-This notebook is used to download files from [MERRA-2](https://gmao.gsfc.nasa.gov/reanalysis/MERRA-2/) (referred to as MERRA).
+This script is used to download files from MERRA-2 (referred to as MERRA): https://gmao.gsfc.nasa.gov/reanalysis/MERRA-2/
 
-The MERRA dataset used, [M2T1NXSLV.5.12.4](https://disc.gsfc.nasa.gov/datasets/M2T1NXSLV_5.12.4/summary) ([DOCUMENTATION](https://gmao.gsfc.nasa.gov/pubs/docs/Bosilovich785.pdf)), contains historic northward and eastward wind components at multiple heights for locations across the globe. The resolution of the MERRA grid is 0.5 x 0.625°. In this notebook, the wind speeds at 10 m (U/V10M corresponds to 10 meters above the zero-plane displacement height) and 50 m (U/V50M corresponds to 50 meters above Earth's surface) are extracted, as well as the zero-plane displacement height (DISPH). 
+The MERRA dataset used, [M2T1NXSLV.5.12.4](https://disc.gsfc.nasa.gov/datasets/M2T1NXSLV_5.12.4/summary) ([DOCUMENTATION](https://gmao.gsfc.nasa.gov/pubs/docs/Bosilovich785.pdf)), contains historic northward and eastward wind components at multiple heights for locations across the globe. 
+The resolution of the MERRA grid is 0.5 x 0.625°. 
+In this notebook, the wind speeds at 10 m (U/V10M corresponds to 10 meters above the zero-plane displacement height) and 50 m (U/V50M corresponds to 50 meters above Earth's surface) are extracted, as well as the zero-plane displacement height (DISPH). 
 
 The code is adapted from the [weather_data](https://github.com/Open-Power-System-Data/weather_data) package and MERRA's [help page](https://disc.gsfc.nasa.gov/information/howto?title=How%20to%20Use%20the%20Web%20Services%20API%20for%20Subsetting).
 
 For each country given, the nearest MERRA point is identified and the hourly data for all points in each day of 2016 is downloaded to a file in a folder named according to the country.
 '''
 
-# python scripts/00_preparations/01_MERRA_download.py
 import numpy as np
 import logging
 import multiprocessing as mp
@@ -31,24 +34,26 @@ ssl._create_default_https_context = ssl._create_unverified_context
 SAF_directory = os.path.dirname(__file__)
 for i in range(2):
     SAF_directory = os.path.dirname(SAF_directory)
+
 # Get scratch path
 if 'cluster/home' in os.getcwd():
     # Uses the $SCRATCH environment variable to locate the scratch file if this module is run within Euler
     scratch_path = os.environ['SCRATCH']
 else:
     scratch_path = os.path.join(SAF_directory,'scratch')
+
 # Read configuration file. The MERRA username is extracted from here.
 with open(os.path.join(SAF_directory,'scripts/config.json')) as config_file:
     config = json.load(config_file)
 
 # Add a logger
-sys.path.append(os.path.join(SAF_directory,'scripts/03_plant_optimization'))
+sys.path.append(os.path.join(SAF_directory,'scripts/optimization'))
 from plant_optimization.utilities import create_logger
 logger = create_logger(scratch_path,__name__,__file__)
 
 results_path = os.path.join(SAF_directory,'data/MERRA')
 if not os.path.isdir(results_path):
-    os.mkdir(results_path)
+    os.makedirs(results_path)
 
 # Download raw data
 #This part defines the input parameters according to the user and creates an URL that can download the desired MERRA-2 data via the OPeNDAP interface (see <a href="documentation.ipynb">documentation notebook</a> for information on OPeNDAP).
@@ -97,7 +102,7 @@ def find_closest_coordinate(calc_coord, coord_array):
     """
     # np.argmin() finds the smallest value in an array and returns its
     # index. np.abs() returns the absolute value of each item of an array.
-    # To summarize, the function finds the difference closest to 0 and returns 
+    # To summarize, the function finds the minimum difference and returns 
     # its index. 
     index = np.abs(coord_array-calc_coord).argmin()
     return coord_array[index]
@@ -138,9 +143,9 @@ def get_MERRA_coordinates(SW_coord,NE_coord):
     
     return [lat_co_1_closest, lon_co_1_closest, lat_co_2_closest, lon_co_2_closest]
 
-    ## Subsetting data
+## Subsetting data
 
-    # Combining parameter choices above/translation according to OPenDAP guidelines into URL-appendix
+# Combining parameter choices above/translation according to OPenDAP guidelines into URL-appendix
 
 def translate_year_to_file_number(year):
     '''
@@ -251,7 +256,6 @@ def generate_urls(MERRA_coords,year): #daylist):
     parameter = generate_url_params(requested_params, requested_time,
                                     requested_lat, requested_lon)
     BASE_URL = 'https://goldsmr4.gesdisc.eosdis.nasa.gov/opendap/MERRA2/M2T1NXSLV.5.12.4/'
-#     generated_URLs['wind'] = generate_download_links_by_day(daylist, BASE_URL, 'tavg1_2d_slv_Nx', parameter)
     generated_URLs = generate_download_links(year, BASE_URL, 'tavg1_2d_slv_Nx', parameter)
 
     return generated_URLs
@@ -265,7 +269,7 @@ def establish_connection(username=config['merra_username'],password=config['merr
     password_manager = urllib.request.HTTPPasswordMgrWithDefaultRealm()
     password_manager.add_password(None, "https://urs.earthdata.nasa.gov", username, password)
 
-    # Create a cookie jar for storing cookies. This is used to store and return the session cookie #given to use by the data server
+    # Create a cookie jar for storing cookies. This is used to store and return the session cookie given to use by the data server
     cookie_jar = CookieJar()
 
     # Install all the handlers.
@@ -284,10 +288,10 @@ def download_files(generated_URLs,download_path):
             DataRequest = urllib.request.Request(URL)
             DataResponse = urllib.request.urlopen(DataRequest)
 
-        # Print out the result
+            # Print out the result
             DataBody = DataResponse.read()
 
-        # Save file to working directory
+            # Save file to working directory
             try:
                 file_ = open(path, 'wb')
                 file_.write(DataBody)
@@ -303,7 +307,6 @@ def download_subset(SW_coord,NE_coord,year,download_path):
     
     SW_coord: Southwest coordinate: (lat_1, lon_1)
     NE_coord: Northeast coordinate: (lat_2, lon_2)
-    day_list: The days you want to download as array (yyyymmdd). 
     '''
     
     MERRA_coords = get_MERRA_coordinates(SW_coord,NE_coord)
@@ -317,9 +320,8 @@ def download_subset(SW_coord,NE_coord,year,download_path):
             establish_connection()
     
 # Import the Europe country points geodataframe used to extract the MERRA points found within each country
-# This file was created in the Notebook: N01_country_boundaries.ipynb
+# This file was created in the country_boundaries.py script
 europe_merra_points = gpd.read_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_MERRA_Evaluation_Points.shp'))
-# coast_points = gpd.read_file(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Coast_Evaluation_Points.shp'))
 
 def download_country_files(country,year=2016):
     '''Downloads all the files corresponding to points within the given country from MERRA. Each file contains hourly wind speed data for the point
@@ -337,11 +339,12 @@ def download_country_files(country,year=2016):
 
 establish_connection()
 
-# Notice: Running the following cell will query the API and save the results to files
+# Notice: The following will query the API and save the results to files
 
 '''The following uses the multiprocessing library to download data for multiple countries simultaneously. 
 The number of concurrent prcesses can be increased to decrease the ammount of time required to download all the data.
 If you have slow wifi, try setting it to 4 or 5. If you download too fast, however, the data portal might ban you for a day.'''
+
 countries = europe_merra_points['country'].unique()
 concurrent_processes = 3
 P = mp.Pool(concurrent_processes)

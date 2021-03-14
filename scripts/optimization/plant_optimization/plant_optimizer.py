@@ -3,18 +3,18 @@
 
 '''
 ----- File Inputs -----
-- wind data: preprocessed wind power output data (parquet) files for each country should be made available in the following path relative to the "SAFlogistics" directory:
-    "/results/01_merra_wind_preprocessing/"
-- PV data: PV output data (parquet) files for each country should be made available in the following path relative to the "SAFlogistics" directory:
-    "/data/PVGIS/"
-- plant assumptions: an updated plant_assumptions.xlsx file must be available in the following path relative to the "SAFlogistics" directory:
+- wind data: preprocessed wind power output data (parquet) files for each country should be made available in the following path relative to the "EuroSAFs" directory:
+    "/results/wind_power_output/"
+- PV data: PV output data (parquet) files for each country should be made available in the following path relative to the "EuroSAFs" directory:
+    "/results/PV_power_output/"
+- plant assumptions: an updated plant_assumptions.xlsx file must be available in the following path relative to the "EuroSAFs" directory:
     "/data/plant_assumptions.xlsx"
 
 
 ----- File Outputs -----
 - logs: logging files are written to the following path relative to the "scratch" directory:
     "scratch/logs/"
-If this script is run on an Euler home directory, it will locate the "scratch" path via the $SCRATCH shell environment variable. Otherwise it must be located in the "SAFlogistics" directory.
+If this script is run on an Euler home directory, it will locate the "scratch" path via the $SCRATCH shell environment variable. Otherwise it must be located in the "EuroSAFs" directory.
 '''
 
 import os 
@@ -63,13 +63,13 @@ class Site():
         self.merra_lon = lookup_row.merra_lon.item()
         self.shore_dist = lookup_row.shore_dist.item() # Distance to the shoreline from the node's centroid [km]
         if wind_data_path == None:
-            wind_data_path = os.path.join(SAF_directory,'results','01_merra_wind_preprocessing',country+'.parquet.gzip')
+            wind_data_path = os.path.join(SAF_directory,'results','wind_power_output',country+'.parquet.gzip')
         warnings.simplefilter("ignore", UserWarning)
         wind_data = pd.read_parquet(wind_data_path)
 
         if not offshore:
             if PV_data_path == None:
-                PV_data_path = os.path.join(SAF_directory,'data','PVGIS',country+'_PV.parquet.gzip')
+                PV_data_path = os.path.join(SAF_directory,'results','PV_power_output',country+'_PV.parquet.gzip')
             self.pv_lat = lookup_row.pv_lat.item()
             self.pv_lon = lookup_row.pv_lon.item()
             PV_data = pd.read_parquet(PV_data_path)
