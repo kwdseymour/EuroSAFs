@@ -496,11 +496,11 @@ def solution_dict(plant):
     results_dict['CAPEX_EUR'] = plant.CAPEX
     results_dict['LCOF_MWh'] = plant.LCOF_MWh
     results_dict['LCOF_liter'] = plant.LCOF_liter
-    results_dict['curtailed_el_MWh'] = plant.operation.curtailed_el_kWh.sum() / 1e3
-    results_dict['wind_production_MWh'] = plant.operation.wind_production_kWh.sum() / 1e3
-    results_dict['PV_production_MWh'] = plant.operation.PV_production_kWh.sum() / 1e3
+    results_dict['curtailed_el_MWh'] = np.sum(plant.operation.curtailed_el_kWh) / 1e3
+    results_dict['wind_production_MWh'] = np.sum(plant.operation.wind_production_kWh) / 1e3
+    results_dict['PV_production_MWh'] = np.sum(plant.operation.PV_production_kWh) / 1e3
     #results_dict['MIPGap'] = plant.m.MIPGap
-    results_dict['fuel_production_MWh'] = plant.fuel_production_kWh.sum() / 1e3
+    results_dict['fuel_production_MWh'] = np.sum(plant.fuel_production_kWh) / 1e3
     results_dict['runtime'] = plant.m.runtime
 
     return results_dict
