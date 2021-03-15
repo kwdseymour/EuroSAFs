@@ -1,0 +1,25 @@
+name: EuroSAFs
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - pandas=1.2.1
+  - geopandas
+  - jupyterlab
+  - matplotlib
+  - descartes
+  - aiohttp
+  - fastparquet
+  - gurobi
+  - xarray
+  - xlrd
+  - openpyxl
+  - scipy
+  - netcdf4
+  - dask
+  - rasterio
+  - certifi
+  - statsmodels
+  - gitpython
+prefix: /opt/anaconda3/envs/EuroSAFs
