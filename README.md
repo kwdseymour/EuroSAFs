@@ -1,9 +1,32 @@
 # Description
 
-This repository can be used to evaluate the minimum cost of fuel producation at sites throughout Europe using a variety of energy resource, cost, efficiency, and other collected data. The minimum cost is obtained via a plant optimization process in which the cost is minimized by selecting optimal plant component sizes and hourly operation (energy & mass flows). 
+This repository provides a tool to evaluate the minimum cost of fuel producation at sites throughout Europe using a botoom-up plant modeling approach in which technical and financial assumptions are combined with wind & solar resource data. The minimum cost is obtained via an optimization problem in which the cheapest plant configuration is determined by selecting component sizes and defining hourly operation (energy & mass flows). 
 
 # Setup
 The [environments.yml](https://github.com/kwdseymour/EuroSAFs/blob/master/environment.yml) file can be used to set up a working Python environment for the scripts in the repository. A Gurobi license must be obtained in order to run the optimization process.
+
+# Core functionality
+At the heart of the repository is the [plant_optimization](https://github.com/kwdseymour/EuroSAFs/tree/master/scripts/optimization/plant_optimization) module, which contains the [plant optimizer](https://github.com/kwdseymour/EuroSAFs/blob/master/scripts/optimization/plant_optimization/plant_optimizer.py) classes and function. A simple use case is as follows:
+
+    import plant_optimization as plop
+    
+    # Define the evaluation country
+    country = "Austria"
+    
+    # Define the plant evaluation location coordinates
+    location = (47.0, 9.375)
+    
+    # Initialize a Site object, which extracts and contains the hourly wind & PV power output for the given location
+    site = plop.Site(location,country,offshore=False)
+    
+    # Initialize a Plant object, which extracts and contains:
+    # - the plant parameters (costs, efficiencies, operation constraints, etc.) according to the provided year
+    # - the given Site object
+    plant = plop.Plant(site,year=2020)
+    
+    # Run the plant optimizer, which saves the solution to the Plant object
+    pop.optimize_plant(plant)
+
 
 # [Data Preparation](https://github.com/kwdseymour/EuroSAFs/tree/master/scripts/data_preparation)
 ## [country_boundaries.py](https://github.com/kwdseymour/EuroSAFs/blob/master/scripts/data_preparation/country_boundaries.py)
