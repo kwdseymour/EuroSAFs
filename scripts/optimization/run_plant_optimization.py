@@ -56,7 +56,7 @@ try:
 except:
     git_sha_str = ''
 
-# Define the results path. The final results folder will contain the git SHA code plus the given evalutation year
+# Define the results path. The final results folder will contain the git SHA code plus the given evaluation year
 results_path = os.path.join(SAF_directory,'results','plant_optimization',git_sha_str+str(year))
 # Further identify results path by oshore/offshore
 if offshore:
@@ -68,6 +68,7 @@ else:
 # Create the directory if it doesn't already exist
 if not os.path.isdir(results_path):
     os.makedirs(results_path)
+    time.sleep(1)
 
 # Get all evaluation points
 europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
@@ -113,7 +114,7 @@ for country in countries:
             f'--bin_size {bin_size} '\
             f'--MIPGap {MIPGap} '\
             f'--DisplayInterval {DisplayInterval} '\
-            f'{offshore_flag}'\
+            f'{offshore_flag} '\
             f'--save_operation '\
             f'--verbose '\
         # bash_str = f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
