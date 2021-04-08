@@ -27,6 +27,10 @@ parser.add_argument('-n','--bin_size',
     help='The maximum number of points that will be evaluated for each job.',
     default=50,
     type=int)
+parser.add_argument('-s','--save_operation',
+    action='store_true',
+    help='Saves the plant operation data to an operations folder in the results folder.',
+    default=False)
 args = parser.parse_args()
 
 SAF_directory = args.SAF_directory
@@ -34,6 +38,8 @@ offshore = args.offshore
 onshore = not offshore
 year = args.year
 bin_size = args.bin_size
+save_operation = args.save_operation
+save_operation_flag = '--save_operation' if save_operation else ''
 
 # Set job resource requirements
 cores = 32 # Number of cores requested for each job
@@ -115,7 +121,7 @@ for country in countries:
             f'--MIPGap {MIPGap} '\
             f'--DisplayInterval {DisplayInterval} '\
             f'{offshore_flag} '\
-            f'--save_operation '\
+            f'{save_operation_flag}'\
             f'--verbose '\
         # bash_str = f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
         # bash_str = f'python $HOME/GitHub/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/GitHub/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
