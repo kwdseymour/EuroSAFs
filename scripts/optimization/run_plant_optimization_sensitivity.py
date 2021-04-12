@@ -36,6 +36,9 @@ onshore = not offshore
 bin_size = args.bin_size
 sample_size = args.sample_size
 
+save_operation = False
+save_operation_flag = '--save_operation' if save_operation else ''
+
 # Set job resource requirements
 cores = 32 # Number of cores requested for each job
 wall_time = '30:00' # Wall time requested for each job
@@ -102,8 +105,8 @@ for i in range(bins):
             f'--bin_size {bin_size} '\
             f'--MIPGap {MIPGap} '\
             f'--DisplayInterval {DisplayInterval} '\
-            f'{offshore_flag}'\
-            f'--save_operation '\
+            f'{offshore_flag} '\
+            f'{save_operation_flag} '\
             f'--verbose '\
             f'--sensitivity_analysis'
     

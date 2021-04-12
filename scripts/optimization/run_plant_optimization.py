@@ -121,7 +121,7 @@ for country in countries:
             f'--MIPGap {MIPGap} '\
             f'--DisplayInterval {DisplayInterval} '\
             f'{offshore_flag} '\
-            f'{save_operation_flag}'\
+            f'{save_operation_flag} '\
             f'--verbose '\
         # bash_str = f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
         # bash_str = f'python $HOME/GitHub/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/GitHub/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
