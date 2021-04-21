@@ -68,11 +68,11 @@ for _,row in cleanup.iterrows():
     # Further identify results path by onshore/offshore
     if offshore:
         points = points.loc[points.sea_node]
-        results_path = os.path.join(parent_results_path,year,'offshore')
+        results_path = os.path.join(parent_results_path,str(year),'offshore')
         offshore_flag = '--offshore'
     else:
         points = points.loc[~points.sea_node]
-        results_path = os.path.join(parent_results_path,year,'onshore')
+        results_path = os.path.join(parent_results_path,str(year),'onshore')
         offshore_flag = ''
 
     # Create the results directory if it doesn't already exist
