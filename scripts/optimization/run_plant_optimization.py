@@ -43,7 +43,7 @@ save_operation_flag = '--save_operation' if save_operation else ''
 
 # Set job resource requirements
 cores = 32 # Number of cores requested for each job
-wall_time = '30:00' # Wall time requested for each job
+wall_time = '40:00' # Wall time requested for each job
 
 # Set optimizer parameters
 MIPGap = .1
