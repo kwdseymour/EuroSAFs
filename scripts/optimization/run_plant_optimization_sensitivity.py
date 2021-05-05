@@ -1,5 +1,4 @@
-# python scripts/optimization/plant_optimization_sensitivity_run.py -d . -n 1 -s 10
-# python scripts/optimization/plant_optimization_sensitivity_run.py -d $HOME/EuroSAFs -s 1000
+# python scripts/optimization/run_plant_optimization_sensitivity.py -d $HOME/EuroSAFs -s 1000
 
 import os
 import sys
@@ -14,7 +13,7 @@ desc_text = 'This script submits jobs to run the sensitivity analysis.'
 parser = argparse.ArgumentParser(description=desc_text)
 parser.add_argument('-d','--SAF_directory',
     help='The path to the "SAFlogistics" directory',
-    default='$HOME/EuroSAFs',
+    default=None,
     type=str)
 parser.add_argument('-o','--offshore',
     action='store_true',
@@ -41,7 +40,7 @@ save_operation_flag = '--save_operation' if save_operation else ''
 
 # Set job resource requirements
 cores = 32 # Number of cores requested for each job
-wall_time = '30:00' # Wall time requested for each job
+wall_time = '40:00' # Wall time requested for each job
 
 # Set optimizer parameters
 MIPGap = 0.01
