@@ -28,8 +28,8 @@ import logging
 from .errors import *
 from .utilities import create_logger
 
-SAF_directory = os.path.dirname(__file__)
-for i in range(3):
+SAF_directory = os.path.abspath(__file__)
+for i in range(4):
     SAF_directory = os.path.dirname(SAF_directory)
 
 if 'cluster/home' in os.getcwd():
