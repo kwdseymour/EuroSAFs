@@ -7,6 +7,7 @@ logs/
 scratch/
 results/
 trash/
+latex/
 scripts/_config.json
 # data/Countries_WGS84/processed/
 data/MERRA/
@@ -22,5 +23,6 @@ __pycache__/
 # scripts/config.json
 scripts/00_preparations/02_PVGIS_download.py
 **/gurobi.lic
+**launch.json
 **_Max**
 **_Saskia**
