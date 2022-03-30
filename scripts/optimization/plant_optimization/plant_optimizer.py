@@ -266,7 +266,7 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     battery_capacity_kWh     = m.addVar(lb=plant.battery.min_capacity, ub=plant.battery.max_capacity, vtype=GRB.CONTINUOUS, name="battery_capacity_kWh") # installed battery capacity [kWh]
     H2stor_capacity_kWh      = m.addVar(lb=plant.H2stor.min_capacity, ub=plant.H2stor.max_capacity, vtype=GRB.CONTINUOUS, name="H2stor_capacity_kWh") # installed hydrogen tank capacity [kWh]
     CO2stor_capacity_kg      = m.addVar(lb=plant.CO2stor.min_capacity, ub=plant.CO2stor.max_capacity, vtype=GRB.CONTINUOUS, name="CO2stor_capacity_kg") # installed CO2 tank capacity [kg CO2]
-    heatpump_capacity_kW     = m.addVar(lb=plant.heat.min_capacity, ub=plant.heat.max_capacity, vtype=GRB.CONTINUOUS, name="heatpump_capacity_kW") # installed heatpump capacity [kW heat output]
+    boiler_capacity_kW       = m.addVar(lb=plant.heat.min_capacity, ub=plant.heat.max_capacity, vtype=GRB.CONTINUOUS, name="boiler_capacity_kW") # installed boiler capacity [kW heat output]
 
     ## Storage operation
     battery_chr_kWh    = m.addVars(time_vec,     lb=0, ub=plant.battery.max_capacity, vtype=GRB.CONTINUOUS, name="battery_chr_kWh") # Battery charge at each hour
@@ -344,7 +344,7 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     
     # electric boiler operation input constraint
     for t in time_vec:
-        m.addConstr(heat_el_kWh[t] <= heatpump_capacity_kW) # electrolyzer_capacity_kW constrains electricity input
+        m.addConstr(heat_el_kWh[t] <= boiler_capacity_kW) # electrolyzer_capacity_kW constrains electricity input
 
     # H2tL operation constraint
     for t in time_vec:
@@ -369,7 +369,7 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     lifetime_H2stor_cost       = costs_NPV(capex=plant.H2stor.CAPEX,opex=plant.H2stor.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.H2stor.lifetime,capacity=H2stor_capacity_kWh)
     lifetime_CO2stor_cost      = costs_NPV(capex=plant.CO2stor.CAPEX,opex=plant.CO2stor.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.CO2stor.lifetime,capacity=CO2stor_capacity_kg/1e3) # Capacity converted to tons to match CAPEX units
     lifetime_H2tL_cost         = costs_NPV(capex=plant.H2tL.CAPEX,opex=plant.H2tL.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.H2tL.lifetime,capacity=H2tL_capacity_kW)
-    lifetime_heat_cost         = costs_NPV(capex=plant.heat.CAPEX,opex=plant.heat.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.heat.lifetime, capacity=heatpump_capacity_kW)
+    lifetime_heat_cost         = costs_NPV(capex=plant.heat.CAPEX,opex=plant.heat.OPEX,discount_rate=plant.discount_rate,plant_lifetime=plant.lifetime,component_lifetime=plant.heat.lifetime, capacity=boiler_capacity_kW)
     lifetime_cost              = lifetime_wind_cost + lifetime_PV_cost + lifetime_electrolyzer_cost + lifetime_CO2_cost + lifetime_battery_cost + lifetime_H2stor_cost + lifetime_CO2stor_cost + lifetime_H2tL_cost + lifetime_heat_cost# EUR
 
     # Set objective function
@@ -411,12 +411,12 @@ def unpack_design_solution(plant,unpack_operation=False):
     plant.H2stor_capacity_kWh      = plant.m.getVarByName('H2stor_capacity_kWh').x
     plant.CO2stor_capacity_kg      = plant.m.getVarByName('CO2stor_capacity_kg').x
     plant.H2tL_capacity_kW         = plant.m.getVarByName('H2tL_capacity_kW').x
-    plant.heatpump_capacity_kW     = plant.m.getVarByName('heatpump_capacity_kW').x
+    plant.boiler_capacity_kW       = plant.m.getVarByName('boiler_capacity_kW').x
     plant.NPV                      = plant.m.ObjVal
     CAPEXes = {}
     component_caps = {'PV':'PV_capacity_kW','electrolyzer':'electrolyzer_capacity_kW',
     'CO2':'CO2_capacity_kgph','battery':'battery_capacity_kWh','H2stor':'H2stor_capacity_kWh','CO2stor':'CO2stor_capacity_kg',
-    'H2tL':'H2tL_capacity_kW','heat':'heatpump_capacity_kW'}
+    'H2tL':'H2tL_capacity_kW','heat':'boiler_capacity_kW'}
     for component,capacity in component_caps.items():
         CAPEXes[component] = plant.__getattribute__(capacity) * plant.__getattribute__(component).CAPEX
     CAPEXes['wind'] = plant.wind.rated_turbine_power * plant.wind_units * plant.wind.CAPEX
@@ -487,7 +487,7 @@ def solution_dict(plant):
     results_dict['PV_capacity_MW'] = plant.PV_capacity_kW / 1e3
     results_dict['electrolyzer_capacity_MW'] = plant.electrolyzer_capacity_kW / 1e3
     results_dict['CO2_capture_tonph'] = plant.CO2_capacity_kgph / 1e3  # tons of CO2 per hour
-    results_dict['heatpump_capacity_MW'] = plant.heatpump_capacity_kW / 1e3
+    results_dict['boiler_capacity_MW'] = plant.boiler_capacity_kW / 1e3
     results_dict['battery_capacity_MWh'] = plant.battery_capacity_kWh / 1e3
     results_dict['H2stor_capacity_MWh'] = plant.H2stor_capacity_kWh  / 1e3
     results_dict['CO2stor_capacity_ton'] = plant.CO2stor_capacity_kg / 1e3

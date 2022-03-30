@@ -62,8 +62,8 @@ d.node('CO2stor',string_generator('<br/>CO2 Storage',
                             operation_dvs  = ['CO2stor_state_kg*'],
                             exog = ['CO2stor_CAPEX','CO2stor_OPEX','CO2stor_lifetime']),
       shape='cylinder')
-d.node('heat',string_generator('Heat Pump',
-                            design_dvs = ['heatpump_capacity_kW'],
+d.node('heat',string_generator('Electric Boiler',
+                            design_dvs = ['boiler_capacity_kW'],
                             operation_dvs  = None,
                             exog = ['heat_CAPEX','heat_OPEX','heat_lifetime','heat_el_efficiency']))
 d.attr('node',shape='none')

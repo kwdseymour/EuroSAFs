@@ -15,7 +15,7 @@ def print_solution_summary(plant):
     print('Installed PV capacity -- {:.1f} MW.'.format(plant.PV_capacity_kW/1e3))
     print('Installed electrolyzer capacity -- {:.2f} MW electric.'.format(plant.electrolyzer_capacity_kW/1e3))
     print('Installed CO2 capture capacity -- {:.1f} kg/hr.'.format(plant.CO2_capacity_kgph))
-    print('Installed electric boiler capacity -- {:.1f} MW.'.format(plant.heatpump_capacity_kW/1e3))
+    print('Installed electric boiler capacity -- {:.1f} MW.'.format(plant.boiler_capacity_kW/1e3))
     print('Installed hydrogen-to-liquid component capacity -- {:.2f} MW.'.format(plant.H2tL_capacity_kW/1e3))
     print('Installed battery capacity -- {:.1f} MWh.'.format(plant.battery_capacity_kWh/1e3))
     print('Installed hydrogen storage tank capacity -- {:.1f} MWh.'.format(plant.H2stor_capacity_kWh/1e3))
