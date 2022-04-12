@@ -309,12 +309,11 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     # electricity balance
     for t in time_vec:
         m.addConstr(curtailed_el_kWh[t] <= wind_production_kWh[t] + PV_production_kWh[t])
-        # m.addConstr(battery_chr_kWh[t] <= wind_production_kWh[t] + PV_production_kWh[t] - curtailed_el_kWh[t])
         m.addConstr(wind_production_kWh[t] + PV_production_kWh[t] + battery_dis_kWh[t] == curtailed_el_kWh[t] + battery_chr_kWh[t] + H2_el_kWh[t] + CO2_el_kWh[t] + H2tL_el_kWh[t] + heat_el_kWh[t])
 
     # heat balance
     for t in time_vec:
-        m.addConstr(heat_el_kWh[t]*plant.heat.el_efficiency + fuel_production_kWh[t]*plant.H2tL.heat_output >=  CO2_production_kg[t]/plant.CO2.th_efficiency)
+        m.addConstr(heat_el_kWh[t]*plant.heat.el_efficiency + fuel_production_kWh[t]*plant.H2tL.heat_output >=  CO2_production_kg[t]*plant.CO2.th_efficiency)
 
     # storage constraints: 
     ## storage level constraint
@@ -329,7 +328,7 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     for t in time_vec:
         m.addConstr(H2stor_state_kWh[t+1] == H2stor_state_kWh[t] + H2stor_chr_kWh[t] - H2stor_dis_kWh[t])
         m.addConstr(CO2stor_state_kg[t+1] == CO2stor_state_kg[t] + CO2stor_chr_kg[t] - CO2stor_dis_kg[t])
-        m.addConstr(battery_state_kWh[t+1] == battery_state_kWh[t] + battery_chr_kWh[t]*plant.battery.cycle_efficiency - battery_dis_kWh[t]/plant.battery.cycle_efficiency)
+        m.addConstr(battery_state_kWh[t+1] == battery_state_kWh[t] + battery_chr_kWh[t]*np.sqrt(plant.battery.cycle_efficiency) - battery_dis_kWh[t]/np.sqrt(plant.battery.cycle_efficiency)) # The battery efficiency value is roundtrip. Take the sqrt to get one-way efficiency.
         m.addConstr(battery_chr_kWh[t] <= battery_capacity_kWh*plant.battery.c_rate) # Charge rate constraints
         m.addConstr(battery_dis_kWh[t] <= battery_capacity_kWh*plant.battery.c_rate) # Disharge rate constraints
 
