@@ -162,7 +162,7 @@ class Plant:
             self.wind.__setattr__('rotor_diameter',site.wind_data['rotor_diameter'][0]) # [m]
             self.wind.specs_units['rated_turbine_power'] = 'kW'
             self.wind.specs_units['rotor_diameter'] = 'm'
-        assert self.kerosene_energy_fraction+self.gasoline_energy_fraction+self.diesel_energy_fraction == 1
+        assert abs(self.kerosene_energy_fraction+self.gasoline_energy_fraction+self.diesel_energy_fraction - 1) < 1e-6
         
     def spec_units(self,spec):
         '''Returns the units of the given specification.'''
