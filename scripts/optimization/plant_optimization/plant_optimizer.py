@@ -335,6 +335,7 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     # electrolyzer operation input constraint
     for t in time_vec:
         m.addConstr(H2_el_kWh[t] <= electrolyzer_capacity_kW) # electrolyzer_capacity_kW constrains electricity input
+        m.addConstr(H2_el_kWh[t] >= plant.electrolyzer.baseload*electrolyzer_capacity_kW)
     
     # CO2 capture operation input constraint
     for t in time_vec:
@@ -343,13 +344,14 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     
     # electric boiler operation input constraint
     for t in time_vec:
-        m.addConstr(heat_el_kWh[t] <= boiler_capacity_kW) # electrolyzer_capacity_kW constrains electricity input
+        m.addConstr(heat_el_kWh[t] <= boiler_capacity_kW) # boiler_capacity_kW constrains electricity input
 
     # H2tL operation constraint
     for t in time_vec:
-        m.addConstr(H2_consumption_kWh[t]*plant.H2tL.chem_efficiency*plant.kerosene_energy_fraction <= H2tL_capacity_kW)
-        m.addConstr(H2_consumption_kWh[t]*plant.H2tL.chem_efficiency*plant.kerosene_energy_fraction >= H2tL_capacity_kW*plant.H2tL.baseload)
+        m.addConstr(fuel_production_kWh[t] <= H2tL_capacity_kW)
+        m.addConstr(fuel_production_kWh[t] >= H2tL_capacity_kW*plant.H2tL.baseload)
         m.addConstr(CO2_consumption_kg[t] == H2_consumption_kWh[t]*plant.H2tL.required_CO2) # Ratio of CO2 to H2 as input to process
+        m.addConstr(H2tL_el_kWh[t] == fuel_production_kWh[t]*plant.H2tL.el_demand)
 
     # fuel production constraint
     m.addConstr(quicksum(fuel_production_kWh)/1e6 >= plant.required_fuel)
