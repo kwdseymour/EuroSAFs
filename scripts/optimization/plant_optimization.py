@@ -48,7 +48,7 @@ script_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 
 desc_text = 'This script runs the plant optimizer for every location in the given country.'
 parser = argparse.ArgumentParser(description=desc_text)
-parser.add_argument('-d','--SAF_directory',
+parser.add_argument('-d','--EuroSAFs_directory',
     help='The path to the "EuroSAFs" directory',)
 parser.add_argument('-r','--results_path',
     help='The path to the directory where the results should be stored',
@@ -113,14 +113,14 @@ year = args.year
 bin_size = args.bin_size
 country = args.country
 max_processes = args.max_processes
-SAF_directory = args.SAF_directory
+EuroSAFs_directory = args.EuroSAFs_directory
 results_path = args.results_path
 
 # Define the path to the scratch directory. This is where logging files will be saved
 if 'cluster/home' in os.getcwd():
     scratch_path = os.environ['SCRATCH']
 else:
-    scratch_path = os.path.join(SAF_directory,'scratch')
+    scratch_path = os.path.join(EuroSAFs_directory,'scratch')
 # Create a directory if it doesn't already exist
 if not os.path.isdir(scratch_path):
     os.makedires(scratch_path)
@@ -137,7 +137,7 @@ if save_operation:
 eval_points_path = os.path.join(results_path,'eval_points.txt')
 
 # Add a logger
-sys.path.insert(1, os.path.join(SAF_directory,'scripts','optimization'))
+sys.path.insert(1, os.path.join(EuroSAFs_directory,'scripts','optimization'))
 from plant_optimization.utilities import create_logger
 logger = create_logger(scratch_path,__name__,__file__)
 
@@ -158,7 +158,7 @@ if sensitivity:
     sensitivity_points = pd.read_csv(os.path.join(results_path,'eval_points.csv'),index_col=0)
     eval_points = sensitivity_points.set_index(['grid_lat','grid_lon'])
 else:
-    europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
+    europe_points = pd.read_csv(os.path.join(EuroSAFs_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
     eval_points = europe_points.loc[europe_points.country==country].set_index(['grid_lat','grid_lon'])
 
 if onshore:

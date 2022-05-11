@@ -28,15 +28,15 @@ import logging
 from .errors import *
 from .utilities import create_logger
 
-SAF_directory = os.path.abspath(__file__)
+EuroSAFs_directory = os.path.abspath(__file__)
 for i in range(4):
-    SAF_directory = os.path.dirname(SAF_directory)
+    EuroSAFs_directory = os.path.dirname(EuroSAFs_directory)
 
 if 'cluster/home' in os.getcwd():
     # Uses the $SCRATCH environment variable to locate the scratch file if this module is run within Euler
     scratch_path = os.environ['SCRATCH']
 else:
-    scratch_path = os.path.join(SAF_directory,'scratch')
+    scratch_path = os.path.join(EuroSAFs_directory,'scratch')
 
 logger = create_logger(scratch_path,__name__,__file__)
 
@@ -54,7 +54,7 @@ class Site():
         self.lon = coordinates[1]
         self.shore_designation = 'offshore' if offshore else 'onshore'
         # Lookup corresponding MERRA point
-        europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
+        europe_points = pd.read_csv(os.path.join(EuroSAFs_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
         lookup_row = europe_points.loc[(europe_points.country==country)&(europe_points.grid_lat==self.lat)&(europe_points.grid_lon==self.lon)&(europe_points.sea_node==offshore)]
         if len(lookup_row) == 0:
             raise CoordinateError(coordinates,f'Europe_Evaluation_Points ({self.shore_designation})')
@@ -63,13 +63,13 @@ class Site():
         self.merra_lon = lookup_row.merra_lon.item()
         self.shore_dist = lookup_row.shore_dist.item() # Distance to the shoreline from the node's centroid [km]
         if wind_data_path == None:
-            wind_data_path = os.path.join(SAF_directory,'results','wind_power_output',country+'.parquet.gzip')
+            wind_data_path = os.path.join(EuroSAFs_directory,'results','wind_power_output',country+'.parquet.gzip')
         warnings.simplefilter("ignore", UserWarning)
         wind_data = pd.read_parquet(wind_data_path)
 
         if not offshore:
             if PV_data_path == None:
-                PV_data_path = os.path.join(SAF_directory,'results','PV_power_output',country+'_PV.parquet.gzip')
+                PV_data_path = os.path.join(EuroSAFs_directory,'results','PV_power_output',country+'_PV.parquet.gzip')
             self.pv_lat = lookup_row.pv_lat.item()
             self.pv_lon = lookup_row.pv_lon.item()
             PV_data = pd.read_parquet(PV_data_path)
@@ -126,7 +126,7 @@ class Plant:
         self.solved=False
         self.site=site
         if specs_path == None:
-            specs_path = os.path.join(SAF_directory,'data','plant_assumptions.xlsx')
+            specs_path = os.path.join(EuroSAFs_directory,'data','plant_assumptions.xlsx')
         specs = pd.read_excel(specs_path,sheet_name='data',index_col=0)
         if not sensitivity:
             specs['value'] = specs[f'value_{year}']
@@ -171,14 +171,14 @@ class Plant:
 # def get_country_points(country,wind_data_path=None):
 #     '''Returns all the MERRA points (0.5 x 0.625 degree geospatial resolution) that reside within the provided country's borders.'''
 #     if wind_data_path == None:
-#         wind_data_path = os.path.join(SAF_directory,'results','01_merra_wind_preprocessing',country+'.parquet.gzip')
+#         wind_data_path = os.path.join(EuroSAFs_directory,'results','01_merra_wind_preprocessing',country+'.parquet.gzip')
 #     wind_data = pd.read_parquet(wind_data_path)
 #     points = list(wind_data.index.droplevel(2).unique())
 #     return points
 
 def get_country_points(country,onshore,offshore):
     '''Returns all the MERRA points (0.5 x 0.625 degree geospatial resolution) that reside within the provided country's borders.'''
-    europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
+    europe_points = pd.read_csv(os.path.join(EuroSAFs_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
     country_points = europe_points.loc[europe_points.country==country].set_index(['grid_lat','grid_lon'])
     if onshore and not offshore:
         country_points = country_points.loc[~country_points.sea_node]

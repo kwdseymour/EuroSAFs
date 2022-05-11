@@ -1,7 +1,6 @@
 # python scripts/optimization/run_plant_optimization_cleanup.py
 
 import os
-import sys
 import numpy as np
 import argparse
 import time
@@ -10,8 +9,8 @@ import git
 
 desc_text = 'This script submits jobs to Euler to run all optimizations for all countries.'
 parser = argparse.ArgumentParser(description=desc_text)
-parser.add_argument('-d','--SAF_directory',
-    help='The path to the "SAFlogistics" directory',
+parser.add_argument('-d','--EuroSAFs_directory',
+    help='The path to the "EuroSAFs" directory',
     default = None,
     type=str)
 parser.add_argument('-n','--bin_size',
@@ -24,7 +23,7 @@ parser.add_argument('-s','--save_operation',
     default=False)
 args = parser.parse_args()
 
-SAF_directory = args.SAF_directory
+EuroSAFs_directory = args.EuroSAFs_directory
 bin_size = args.bin_size
 save_operation = args.save_operation
 save_operation_flag = '--save_operation' if save_operation else ''
@@ -38,9 +37,9 @@ MIPGap = .1
 DisplayInterval = 30 # This sets how frequently Gurobi prints the optimizer progress
 
 # Define path to primary directory
-if SAF_directory == None:
-    SAF_directory = os.environ['HOME']
-    SAF_directory = os.path.join(SAF_directory,'EuroSAFs')
+if EuroSAFs_directory == None:
+    EuroSAFs_directory = os.environ['HOME']
+    EuroSAFs_directory = os.path.join(EuroSAFs_directory,'EuroSAFs')
 
 # Retrieves the SHA code of the current git commit. This is used for file handling
 try:
@@ -51,13 +50,13 @@ except:
     git_sha_str = ''
 
 # Define the results path. The final results folder will contain the git SHA code plus the given evaluation year
-parent_results_path = os.path.join(SAF_directory,'results','plant_optimization',git_sha_str+'cleanup')
+parent_results_path = os.path.join(EuroSAFs_directory,'results','plant_optimization',git_sha_str+'cleanup')
 
 # Get all evaluation points
-europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
+europe_points = pd.read_csv(os.path.join(EuroSAFs_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
 
 # loop through each entry in the cleanup file: 
-cleanup = pd.read_csv(os.path.join(SAF_directory,'scripts/optimization/cleanup.csv'))
+cleanup = pd.read_csv(os.path.join(EuroSAFs_directory,'scripts/optimization/cleanup.csv'))
 for _,row in cleanup.iterrows():
     country = row['country']
     year = row['year']
@@ -97,8 +96,8 @@ for _,row in cleanup.iterrows():
             
         # Generate the job submission string to be submitted to Euler
         bash_str = f'bsub -n {cores} -W {wall_time} -J "{country}-{i}" -oo {results_path}/lsf.{country}-{i}.txt '\
-            f'python {SAF_directory}/scripts/optimization/plant_optimization.py '\
-            f'--SAF_directory {SAF_directory} '\
+            f'python {EuroSAFs_directory}/scripts/optimization/plant_optimization.py '\
+            f'--EuroSAFs_directory {EuroSAFs_directory} '\
             f'--results_path {results_path} '\
             f'--country {country} '\
             f'--year {year} '\

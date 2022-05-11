@@ -1,7 +1,6 @@
 # python scripts/optimization/run_plant_optimization_sensitivity.py -d $HOME/EuroSAFs -s 1000
 
 import os
-import sys
 import numpy as np
 import argparse
 import time
@@ -11,8 +10,8 @@ import git
 
 desc_text = 'This script submits jobs to run the sensitivity analysis.'
 parser = argparse.ArgumentParser(description=desc_text)
-parser.add_argument('-d','--SAF_directory',
-    help='The path to the "SAFlogistics" directory',
+parser.add_argument('-d','--EuroSAFs_directory',
+    help='The path to the "EuroSAFs" directory',
     default=None,
     type=str)
 parser.add_argument('-o','--offshore',
@@ -29,9 +28,8 @@ parser.add_argument('-s','--sample_size',
     type=int)
 args = parser.parse_args()
 
-SAF_directory = args.SAF_directory
+EuroSAFs_directory = args.EuroSAFs_directory
 offshore = args.offshore
-onshore = not offshore
 bin_size = args.bin_size
 sample_size = args.sample_size
 
@@ -47,9 +45,9 @@ MIPGap = 0.01
 DisplayInterval = 30 # This sets how frequently Gurobi prints the optimizer progress
 
 # Define path to primary directory
-if SAF_directory == None:
-    SAF_directory = os.environ['HOME']
-    SAF_directory = os.path.join(SAF_directory,'EuroSAFs')
+if EuroSAFs_directory == None:
+    EuroSAFs_directory = os.environ['HOME']
+    EuroSAFs_directory = os.path.join(EuroSAFs_directory,'EuroSAFs')
 
 # Retrieves the SHA code of the current git commit. This is used for file handling
 try:
@@ -61,7 +59,7 @@ except:
 
 
 # Define the results path. The final results folder will contain the git SHA code plus the given evalutation year
-results_path = os.path.join(SAF_directory,'results','plant_optimization',git_sha_str+'sensitivity')
+results_path = os.path.join(EuroSAFs_directory,'results','plant_optimization',git_sha_str+'sensitivity')
 # Further identify results path by oshore/offshore
 if offshore:
     results_path = os.path.join(results_path,'offshore')
@@ -74,7 +72,7 @@ if not os.path.isdir(results_path):
     os.makedirs(results_path)
 
 # Get all evaluation points
-europe_points = pd.read_csv(os.path.join(SAF_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
+europe_points = pd.read_csv(os.path.join(EuroSAFs_directory,'data/Countries_WGS84/processed/Europe_Evaluation_Points.csv'),index_col=0)
 points_set = europe_points.loc[europe_points.sea_node==offshore]
 
 # Randomly select evaluation points
@@ -95,8 +93,8 @@ for i in range(bins):
 
     # Generate the job submission string to be submitted to Euler
     bash_str = f'bsub -n {cores} -W {wall_time} -J "sensitivity-{i}" -oo {results_path}/lsf.sensitivity-{i}.txt '\
-            f'python {SAF_directory}/scripts/optimization/plant_optimization.py '\
-            f'--SAF_directory {SAF_directory} '\
+            f'python {EuroSAFs_directory}/scripts/optimization/plant_optimization.py '\
+            f'--EuroSAFs_directory {EuroSAFs_directory} '\
             f'--results_path {results_path} '\
             f'--country sensitivity '\
             f'--year 2020 '\
