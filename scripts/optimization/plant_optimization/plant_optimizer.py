@@ -335,7 +335,6 @@ def optimize_plant(plant,threads=None,MIPGap=0.001,timelimit=1000,DisplayInterva
     # electrolyzer operation input constraint
     for t in time_vec:
         m.addConstr(H2_el_kWh[t] <= electrolyzer_capacity_kW) # electrolyzer_capacity_kW constrains electricity input
-        m.addConstr(H2_el_kWh[t] >= plant.electrolyzer.baseload*electrolyzer_capacity_kW)
     
     # CO2 capture operation input constraint
     for t in time_vec:
