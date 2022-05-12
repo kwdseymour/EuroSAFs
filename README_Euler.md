@@ -25,7 +25,7 @@ Install packages in the environment using the requirements.txt file:\
 To minimize the number of steps required to configure the environments and update files, it can be helpful to create a shortcut (alias).
 
 Open .bash_profile in your $HOME directory and paste the following line at the bottom:\
-`alias esConfig='module load new gcc/4.8.2 python/3.7.1; source EuroSAFs/bin/activate; cd EuroSAFs; git pull'`\
+`alias esConfig='module load new gcc/4.8.2 python/3.7.1; source EuroSAFs/bin/activate; cd $HOME/EuroSAFs; git pull'`\
 (ammend path to the cloned EuroSAFs directory as needed)
 
 By running this new alias, `esConfig`, after each subsequent connection to Euler, the environment will be set up as needed to run scripts.
