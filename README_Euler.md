@@ -3,7 +3,7 @@
 This describes the steps necessary to configure EuroSAFs to run on an Euler account.
 
 # Git Repository Cloning
-Clone the git repository in the the $HOME directory if possible (this decreases the likelihood of file import errors within some scripts):\
+Clone the git repository in the $HOME directory if possible (this decreases the likelihood of file import errors within some scripts):\
 `git clone https://github.com/kwdseymour/EuroSAFs.git`
 
 # Initial Euler Environment Set up 
@@ -14,15 +14,15 @@ Create a Python virtual environment:\
 `python -m venv --system-site-packages EuroSAFs`\
 The option --system-site-packages includes Python packages from host Python also in the virtual environment. This is needed to access Gurobi.
 
-Activate the virtual envirnment:\
+Activate the virtual environment:\
 `source EuroSAFs/bin/activate`
 
 Install packages in the environment using the requirements.txt file:\
 `python -m pip install -r EuroSAFs/requirements.txt`\
 (ammend path to requirements.txt file as needed)
 
-# Subsequent Environment Activations
-To minimize the number of steps required to configure the environments and update files, it can be helpful to create a shortcut (alias).
+# Subsequent Environment Activations (Optional)
+To minimize the number of steps required to configure the environments and update files in future runs, it can be helpful to create a shortcut (alias).
 
 Open .bash_profile in your $HOME directory and paste the following line at the bottom:\
 `alias esConfig='module load new gcc/4.8.2 python/3.7.1; source EuroSAFs/bin/activate; cd $HOME/EuroSAFs; git pull'`\
