@@ -30,6 +30,12 @@ Open .bash_profile in your $HOME directory and paste the following line at the b
 
 By running this new alias, `esConfig`, after each subsequent connection to Euler, the environment will be set up as needed to run scripts.
 
+# Results Directory Setup
+The SAF plant simulations require wind and solar PV production data generated in a previous stage of research. These data need to be located in a "results" folder located in the parent EuroSAFs directory, which is also where the results of the plant simulations will be saved. Please contact a contributor to obtain access to the necessary files. Once you have done so, configure the wind & PV data folders with the following paths:
+- EuroSAFs/results/PV_power_output
+- EuorSAFs/results/wind_power_output
+Each directory should contain a parquet file for each country to be simulated.
+
 # Running Simulations
 ## run_plant_optimization.py
 This script submits jobs to run the plant optimizer for all European countries. The number of jobs submitted when running this script is on the order of 100. Call the script from the EuroSAFs directory like so:\
