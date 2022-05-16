@@ -39,4 +39,4 @@ Each directory should contain a parquet file for each country to be simulated.
 # Running Simulations
 ## run_plant_optimization.py
 This script submits jobs to run the plant optimizer for all European countries. The number of jobs submitted when running this script is on the order of 100. Call the script from the EuroSAFs directory like so:\
-`python scripts/optimization/run_plant_optimization.py -y 2020`
+`python scripts/optimization/run_plant_optimization.py -d . -y 2020`
