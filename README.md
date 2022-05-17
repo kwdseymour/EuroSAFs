@@ -47,3 +47,5 @@ For each country given, the nearest MERRA point is identified and the hourly dat
 ![alt text](https://github.com/kwdseymour/EuroSAFs/blob/master/gfx/LCOF_combined.png)
 
 ![alt_text](https://github.com/kwdseymour/EuroSAFs/blob/master/gfx/plant_flowchart.svg)
+
+![alt_text](https://github.com/kwdseymour/EuroSAFs/blob/master/gfx/Sankey.svg)
