@@ -212,8 +212,8 @@ for i,point in enumerate(points):
     except pop.errors.CoordinateError:
         logger.error(f'Coordinate error for point ({point}) in {country}.')
         continue
-    except:
-        logger.error(f'Optimization problem for point ({point}) in {country}.')
+    except Exception as e:
+        logger.error(f'Optimization problem for point ({point}) in {country}: {e}')
         continue
 
     # Extract the plant solution to a dictionary
