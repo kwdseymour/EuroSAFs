@@ -79,8 +79,7 @@ europe_points = pd.read_csv(os.path.join(EuroSAFs_directory,'data/Countries_WGS8
 countries = europe_points.country.unique()
 
 # loop through the countries list: 
-for country in ['Austria','Germany']: #DELETE THIS LINE
-# for country in countries: #UNCOMMENT THIS LINE
+for country in countries:
     # Subset the points according to onshore/offshore
     points = europe_points.loc[europe_points.country==country].set_index(['grid_lat','grid_lon'])
     if offshore:
@@ -90,8 +89,6 @@ for country in ['Austria','Germany']: #DELETE THIS LINE
     
     # Assign points to list
     points = list(points.index.unique())
-
-    points = points[:2] #DELETE THIS LINE
 
     # Divide the points list into a set of bins depending on the bin_size given as a script argument. (Default=50)
     bins = int(np.ceil(len(points)/bin_size))
@@ -125,6 +122,3 @@ for country in ['Austria','Germany']: #DELETE THIS LINE
         # Execute the generated job submission bash command 
         os.system(bash_str)
         time.sleep(0.1)
-
-        break #DELETE THIS LINE
-    break #DELETE THIS LINE
