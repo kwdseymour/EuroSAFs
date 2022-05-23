@@ -72,7 +72,7 @@ parser.add_argument('-b','--bin_number',
     type=int)
 parser.add_argument('-t','--time_limit',
     help='Sets the time limit of the optimizer (seconds)',
-    default=3000,
+    default=3600,
     type=int)
 parser.add_argument('-m','--MIPGap',
     help='Sets the MIP gap of the optimizer',
