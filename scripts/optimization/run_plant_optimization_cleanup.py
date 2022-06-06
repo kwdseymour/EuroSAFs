@@ -84,33 +84,33 @@ for _,row in cleanup.iterrows():
 
     # Divide the points list into a set of bins depending on the bin_size given as a script argument. (Default=50)
     bins = int(np.ceil(len(points)/bin_size))
-    for i in range(bins): # Loop thourgh points bins
-        i+=1
-        bin_string = f'_{i}-{bins}'
+    
+    i = row['bin']
+    bin_string = f'_{i}-{bins}'
 
-        # Check if the result already exists and skip the bin if it does
-        file_path = os.path.join(results_path,country+bin_string+'.csv')
-        if os.path.isfile(file_path):
-            print(f'{file_path} already exists. Delete file to run this set.')
-            continue
-            
-        # Generate the job submission string to be submitted to Euler
-        bash_str = f'bsub -n {cores} -W {wall_time} -J "{country}-{i}" -oo {results_path}/lsf.{country}-{i}.txt '\
-            f'python {EuroSAFs_directory}/scripts/optimization/plant_optimization.py '\
-            f'--EuroSAFs_directory {EuroSAFs_directory} '\
-            f'--results_path {results_path} '\
-            f'--country {country} '\
-            f'--year {year} '\
-            f'--bin_number {i} '\
-            f'--bin_size {bin_size} '\
-            f'--MIPGap {MIPGap} '\
-            f'--DisplayInterval {DisplayInterval} '\
-            f'{offshore_flag} '\
-            f'{save_operation_flag} '\
-            f'--verbose '\
-        # bash_str = f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
-        # bash_str = f'python $HOME/GitHub/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/GitHub/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
+    # Check if the result already exists and skip the bin if it does
+    file_path = os.path.join(results_path,country+bin_string+'.csv')
+    if os.path.isfile(file_path):
+        print(f'{file_path} already exists. Delete file to run this set.')
+        continue
         
-        # Execute the generated job submission bash command 
-        os.system(bash_str)
-        time.sleep(0.1)
+    # Generate the job submission string to be submitted to Euler
+    bash_str = f'bsub -n {cores} -W {wall_time} -J "{country}-{i}" -oo {results_path}/lsf.{country}-{i}.txt '\
+        f'python {EuroSAFs_directory}/scripts/optimization/plant_optimization.py '\
+        f'--EuroSAFs_directory {EuroSAFs_directory} '\
+        f'--results_path {results_path} '\
+        f'--country {country} '\
+        f'--year {year} '\
+        f'--bin_number {i} '\
+        f'--bin_size {bin_size} '\
+        f'--MIPGap {MIPGap} '\
+        f'--DisplayInterval {DisplayInterval} '\
+        f'{offshore_flag} '\
+        f'{save_operation_flag} '\
+        f'--verbose '\
+    # bash_str = f'python $HOME/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
+    # bash_str = f'python $HOME/GitHub/EuroSAFs/scripts/03_plant_optimization/02_plant_optimization.py -d $HOME/GitHub/EuroSAFs -c {country} -m {MIPGap} -i {DisplayInterval} -b {i} -n {bin_size} -v -s'
+    
+    # Execute the generated job submission bash command 
+    os.system(bash_str)
+    time.sleep(0.1)

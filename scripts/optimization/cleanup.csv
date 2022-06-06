@@ -1,15 +1,2 @@
-﻿country,year,offshore
-United_Kingdom,2030,1
-Ireland,2030,1
-Finland,2030,0
-Switzerland,2030,0
-United_Kingdom,2040,1
-Belgium,2040,0
-Netherlands,2040,1
-Iceland,2040,1
-Denmark,2040,1
-Norway,2050,1
-France,2050,1
-Spain,2050,0
-Poland,2050,0
-Portugal,2050,1
+﻿country,year,offshore,bin
+United_Kingdom,2050,1,2
