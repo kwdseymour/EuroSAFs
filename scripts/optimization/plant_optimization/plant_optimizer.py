@@ -128,6 +128,7 @@ class Plant:
         if specs_path == None:
             specs_path = os.path.join(EuroSAFs_directory,'data','plant_assumptions.xlsx')
         specs = pd.read_excel(specs_path,sheet_name='data',index_col=0)
+        specs = specs.dropna(how='all') # Drop extra blanks lines that may sometimes be read in with pd.read_excel
         if not sensitivity:
             specs['value'] = specs[f'value_{year}']
             # If any specs are not specified for the given year, take the 2020 value
@@ -142,11 +143,12 @@ class Plant:
 
         component_names = ['wind','PV','battery','electrolyzer','CO2','H2stor','CO2stor','H2tL','heat']
         for component_name in component_names:
-            wind_class='mid'
+            wind_class=None
             if component_name == 'wind' and not site == None:
                 if site.shore_designation == 'offshore':
                     wind_class = 'monopole' if site.shore_dist <= 60 else 'floating'
-                wind_class = site.wind_data['specific_capacity_class'][0]
+                else:
+                    wind_class = site.wind_data['specific_capacity_class'][0]
             self.__setattr__(component_name,Component(component_name,specs,wind_class=wind_class,sensitivity=sensitivity))
 
         self.specs_units={}
@@ -420,7 +422,7 @@ def unpack_design_solution(plant,unpack_operation=False):
     for component,capacity in component_caps.items():
         CAPEXes[component] = plant.__getattribute__(capacity) * plant.__getattribute__(component).CAPEX
     CAPEXes['wind'] = plant.wind.rated_turbine_power * plant.wind_units * plant.wind.CAPEX
-    CAPEXes['CO2'] = plant.CO2_capacity_kgph/1e3 * plant.CO2.CAPEX
+    CAPEXes['CO2'] = plant.CO2_capacity_kgph/1e3*8760 * plant.CO2.CAPEX
     CAPEXes['CO2stor'] = plant.CO2stor_capacity_kg/1e3 * plant.CO2stor.CAPEX
     plant.CAPEXes = CAPEXes
     plant.CAPEX              = np.sum(list(CAPEXes.values()))
