@@ -481,7 +481,7 @@ def compute_power_output(df):
         shore_designation = 'offshore' if is_offshore else 'onshore'
         if is_offshore:
             shore_dist = europe_merra_points.loc[(europe_merra_points.grid_lat==coords[0])&(europe_merra_points.grid_lon==coords[1]),'shore_dist'].max()
-            foundation_type = 'monopile' if shore_dist <=60 else 'floating'
+            foundation_type = 'monopole' if shore_dist <=60 else 'floating'
         else:
             foundation_type=None
 
