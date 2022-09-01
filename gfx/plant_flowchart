@@ -1,0 +1,68 @@
+digraph plant {
+	graph [rankdir=LR]
+	node [shape=oval]
+	electricity [label=<<font POINT-SIZE="30">Electricity<br/>Balance</font>> color=darkgreen]
+	H2_mb [label=<<font POINT-SIZE="30">H2<br/>Mass<br/>Balance</font>> color=cyan]
+	CO2_mb [label=<<font POINT-SIZE="30">CO2<br/>Mass<br/>Balance</font>> color=purple]
+	node [shape=rect]
+	pv [label=<<font POINT-SIZE="30"><b>Solar PV Plant</b></font><br/><font POINT-SIZE="30" color="blue">PV_capacity_kW</font><br/><font POINT-SIZE="30" color="Silver">PV_CAPEX</font><br/><font POINT-SIZE="30" color="Silver">PV_OPEX</font><br/><font POINT-SIZE="30" color="Silver">PV_lifetime</font>> margin=.25 shape=cds]
+	wind [label=<<font POINT-SIZE="30"><b>Wind Plant</b></font><br/><font POINT-SIZE="30" color="blue">wind_units (turbines)</font><br/><font POINT-SIZE="30" color="Silver">wind_CAPEX</font><br/><font POINT-SIZE="30" color="Silver">wind_OPEX</font><br/><font POINT-SIZE="30" color="Silver">wind_lifetime</font>> margin=.15 shape=cds]
+	electrolyzer [label=<<font POINT-SIZE="30"><b>Electrolyzer</b></font><br/><font POINT-SIZE="30" color="blue">electrolyzer_capacity_kW</font><br/><font POINT-SIZE="30" color="Silver">electrolyzer_CAPEX</font><br/><font POINT-SIZE="30" color="Silver">electrolyzer_OPEX</font><br/><font POINT-SIZE="30" color="Silver">electrolyzer_lifetime</font><br/><font POINT-SIZE="30" color="Silver">electrolyzer_stack_CAPEX</font><br/><font POINT-SIZE="30" color="Silver">electrolyzer_stack_lifetime</font><br/><font POINT-SIZE="30" color="Silver">electrolyzer_efficiency</font>>]
+	CO2 [label=<<font POINT-SIZE="30"><b>CO2 Capture</b></font><br/><font POINT-SIZE="30" color="blue">CO2_capacity_kgph</font><br/><font POINT-SIZE="30" color="Silver">CO2_CAPEX</font><br/><font POINT-SIZE="30" color="Silver">CO2_OPEX</font><br/><font POINT-SIZE="30" color="Silver">CO2_lifetime</font><br/><font POINT-SIZE="30" color="Silver">CO2_el_efficiency</font><br/><font POINT-SIZE="30" color="Silver">CO2_th_efficiency</font>>]
+	H2tL [label=<<font POINT-SIZE="30"><b>Hydrogen-to-Liquid</b></font><br/><font POINT-SIZE="30" color="blue">H2tL_capacity_kW</font><br/><font POINT-SIZE="30" color="Silver">H2tL_CAPEX</font><br/><font POINT-SIZE="30" color="Silver">H2tL_OPEX</font><br/><font POINT-SIZE="30" color="Silver">H2tL_lifetime</font><br/><font POINT-SIZE="30" color="Silver">H2tL_chem_efficiency</font><br/><font POINT-SIZE="30" color="Silver">H2tL_el_efficiency</font><br/><font POINT-SIZE="30" color="Silver">H2tL_heat_output</font><br/><font POINT-SIZE="30" color="Silver">H2tL_baseload</font><br/><font POINT-SIZE="30" color="Silver">H2tL_required_CO2</font>>]
+	battery [label=<<font POINT-SIZE="30"><b><br/>Battery</b></font><br/><font POINT-SIZE="30" color="blue">battery_capacity_kWh</font><br/><font POINT-SIZE="30" color="blue">battery_state_kWh*</font><br/><font POINT-SIZE="30" color="Silver">battery_CAPEX</font><br/><font POINT-SIZE="30" color="Silver">battery_OPEX</font><br/><font POINT-SIZE="30" color="Silver">battery_lifetime</font><br/><font POINT-SIZE="30" color="Silver">battery_cycle_efficiency</font><br/><font POINT-SIZE="30" color="Silver">battery_c_rate</font>> shape=cylinder]
+	H2stor [label=<<font POINT-SIZE="30"><b><br/>H2 Storage</b></font><br/><font POINT-SIZE="30" color="blue">H2stor_capacity_kWh</font><br/><font POINT-SIZE="30" color="blue">H2stor_state_kWh*</font><br/><font POINT-SIZE="30" color="Silver">H2stor_CAPEX</font><br/><font POINT-SIZE="30" color="Silver">H2stor_OPEX</font><br/><font POINT-SIZE="30" color="Silver">H2stor_lifetime</font>> shape=cylinder]
+	CO2stor [label=<<font POINT-SIZE="30"><b><br/>CO2 Storage</b></font><br/><font POINT-SIZE="30" color="blue">CO2stor_capacity_kg</font><br/><font POINT-SIZE="30" color="blue">CO2stor_state_kg*</font><br/><font POINT-SIZE="30" color="Silver">CO2stor_CAPEX</font><br/><font POINT-SIZE="30" color="Silver">CO2stor_OPEX</font><br/><font POINT-SIZE="30" color="Silver">CO2stor_lifetime</font>> shape=cylinder]
+	heat [label=<<font POINT-SIZE="30"><b>Electric Boiler</b></font><br/><font POINT-SIZE="30" color="blue">boiler_capacity_kW</font><br/><font POINT-SIZE="30" color="Silver">heat_CAPEX</font><br/><font POINT-SIZE="30" color="Silver">heat_OPEX</font><br/><font POINT-SIZE="30" color="Silver">heat_lifetime</font><br/><font POINT-SIZE="30" color="Silver">heat_el_efficiency</font>>]
+	node [shape=none]
+	curtailed [label=<<font POINT-SIZE="30">curtailed_el_kWh*</font>> fontcolor=blue]
+	node [shape=doublecircle]
+	kerosene [label=<<font POINT-SIZE="30"><b>Kerosene</b></font><br/>>]
+	diesel [label=<<font POINT-SIZE="30"><b>Diesel</b></font><br/>>]
+	gasoline [label=<<font POINT-SIZE="30"><b>Gasoline</b></font><br/>>]
+	edge [color=darkgreen fontcolor=blue]
+	wind -> electricity [label=<<font POINT-SIZE="30">wind_production_kWh*</font>>]
+	electricity -> battery [label=<<font POINT-SIZE="30">battery_chr_kWh*</font>>]
+	battery -> electricity [label=<<font POINT-SIZE="30">battery_dis_kWh*</font>>]
+	pv -> electricity [label=<<font POINT-SIZE="30">PV_production_kWh*</font>>]
+	electricity -> electrolyzer [label=<<font POINT-SIZE="30">H2_el_kWh*</font>>]
+	electricity -> CO2 [label=<<font POINT-SIZE="30">CO2_el_kWh*</font>>]
+	electricity -> H2tL [label=<<font POINT-SIZE="30">H2tL_el_kWh*</font>>]
+	electricity -> heat [label=<<font POINT-SIZE="30">heat_el_kWh*</font>>]
+	electricity -> curtailed
+	edge [color=cyan]
+	electrolyzer -> H2_mb [label=<<font POINT-SIZE="30">H2_production_kWh*</font>>]
+	H2_mb -> H2tL [label=<<font POINT-SIZE="30">H2_consumption_kWh*</font>>]
+	H2stor -> H2_mb [label=<<font POINT-SIZE="30">H2stor_dis_kWh*</font>>]
+	H2_mb -> H2stor [label=<<font POINT-SIZE="30">H2stor_chr_kWh*</font>>]
+	edge [color=purple]
+	CO2 -> CO2_mb [label=<<font POINT-SIZE="30">CO2_production_kg*</font>>]
+	CO2_mb -> H2tL [label=<<font POINT-SIZE="30">CO2_consumption_kg*</font>>]
+	CO2stor -> CO2_mb [label=<<font POINT-SIZE="30">CO2_dis_kg*</font>>]
+	CO2_mb -> CO2stor [label=<<font POINT-SIZE="30">CO2_chr_kg*</font>>]
+	edge [color=red]
+	heat -> CO2
+	H2tL -> CO2
+	edge [color=black]
+	H2tL -> kerosene
+	H2tL -> diesel
+	H2tL -> gasoline
+	{
+		rank=same
+		heat
+		battery
+		electrolyzer
+		H2stor
+	}
+	{
+		rank=same
+		H2tL
+		CO2stor
+		CO2
+		H2_mb
+	}
+	{
+		wind
+		wind
+	}
+}

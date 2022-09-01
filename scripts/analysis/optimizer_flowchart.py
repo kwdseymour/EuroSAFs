@@ -1,27 +1,21 @@
 from graphviz import Graph, Digraph
 
 def string_generator(title,design_dvs=None,operation_dvs=None,exog=None,energy_flow=None,mass_flow=None):
-    design_dv_string = '' if design_dvs==None else '<br/>'.join([f'<font color="blue">{item}</font>' for item in design_dvs])+'<br/>'
-    operation_dv_string = '' if operation_dvs==None else '<br/>'.join([f'<font color="blue">{item}</font>' for item in operation_dvs])+'<br/>'
-    exog_string = '' if exog==None else '<br/>'.join([f'<font color="grey">{item}</font>' for item in exog])
-    return f'<<font><b>{title}</b></font><br/>{design_dv_string}{operation_dv_string}{exog_string}>'
+    design_dv_string = '' if design_dvs==None else '<br/>'.join([f'<font POINT-SIZE="30" color="blue">{item}</font>' for item in design_dvs])+'<br/>'
+    operation_dv_string = '' if operation_dvs==None else '<br/>'.join([f'<font POINT-SIZE="30" color="blue">{item}</font>' for item in operation_dvs])+'<br/>'
+    exog_string = '' if exog==None else '<br/>'.join([f'<font POINT-SIZE="30" color="DarkGray">{item}</font>' for item in exog])
+    return f'<<font POINT-SIZE="30"><b>{title}</b></font><br/>{design_dv_string}{operation_dv_string}{exog_string}>'
 
-d = Digraph('plant',engine='dot',format='jpg',filename='../../gfx/plant_flowchart')
+def format_as_html(string):
+    return f'<<font POINT-SIZE="30">{string}</font>>'
+    
+d = Digraph('plant', engine='dot',format='png',filename='../../gfx/plant_flowchart')
 d.graph_attr['rankdir'] = 'LR'
 
-d.node('legend','''<
-<font POINT-SIZE="25"><u>Legend</u><br/></font><br/>
-<font><b>Plant components</b></font><br/>
-<font color="blue">Optimizer decision variables<br/>
-(* denotes the variable is an hourly array)</font><br/>
-<font color="grey">Exogenous specifications</font>
-<br/> >''',
-       shape='rect',rankType='max')
-
 d.attr('node',shape='oval')
-d.node('electricity','Electricity Balance',color='darkgreen')
-d.node('H2_mb','H2 Mass Balance',color='cyan')
-d.node('CO2_mb','CO2 Mass Balance',color='purple')
+d.node('electricity','<<font POINT-SIZE="30">Electricity<br/>Balance</font>>',color='darkgreen')
+d.node('H2_mb','<<font POINT-SIZE="30">H2<br/>Mass<br/>Balance</font>>',color='cyan')
+d.node('CO2_mb','<<font POINT-SIZE="30">CO2<br/>Mass<br/>Balance</font>>',color='purple')
 
 d.attr('node',shape='rect')
 
@@ -67,7 +61,7 @@ d.node('heat',string_generator('Electric Boiler',
                             operation_dvs  = None,
                             exog = ['heat_CAPEX','heat_OPEX','heat_lifetime','heat_el_efficiency']))
 d.attr('node',shape='none')
-d.node('curtailed','curtailed_el_kWh*',fontcolor='blue')
+d.node('curtailed',format_as_html('curtailed_el_kWh*'),fontcolor='blue')
 d.attr('node',shape='doublecircle')
 d.node('kerosene',string_generator('Kerosene'))
 d.node('diesel',string_generator('Diesel'))
@@ -76,30 +70,30 @@ d.node('gasoline',string_generator('Gasoline'))
 # Define electricity flows
 d.attr('edge',color='darkgreen',fontcolor='blue')
 
-d.edge('wind','electricity','wind_production_kWh*')
-d.edge('electricity','battery','battery_chr_kWh*')
-d.edge('battery','electricity','battery_dis_kWh*')
-d.edge('pv','electricity','PV_production_kWh*')
-d.edge('electricity','electrolyzer','H2_el_kWh*')
-d.edge('electricity','CO2','CO2_el_kWh*')
-d.edge('electricity','H2tL','H2tL_el_kWh*')
-d.edge('electricity','heat','heat_el_kWh*')
+d.edge('wind','electricity',format_as_html('wind_production_kWh*'))
+d.edge('electricity','battery',format_as_html('battery_chr_kWh*'))
+d.edge('battery','electricity',format_as_html('battery_dis_kWh*'))
+d.edge('pv','electricity',format_as_html('PV_production_kWh*'))
+d.edge('electricity','electrolyzer',format_as_html('H2_el_kWh*'))
+d.edge('electricity','CO2',format_as_html('CO2_el_kWh*'))
+d.edge('electricity','H2tL',format_as_html('H2tL_el_kWh*'))
+d.edge('electricity','heat',format_as_html('heat_el_kWh*'))
 d.edge('electricity','curtailed')
 
 
 #Define H2 flows
 d.attr('edge',color='cyan')
-d.edge('electrolyzer','H2_mb','H2_production_kWh*')
-d.edge('H2_mb','H2tL','H2_consumption_kWh*')
-d.edge('H2stor','H2_mb','H2stor_dis_kWh*')
-d.edge('H2_mb','H2stor','H2stor_chr_kWh*')
+d.edge('electrolyzer','H2_mb',format_as_html('H2_production_kWh*'))
+d.edge('H2_mb','H2tL',format_as_html('H2_consumption_kWh*'))
+d.edge('H2stor','H2_mb',format_as_html('H2stor_dis_kWh*'))
+d.edge('H2_mb','H2stor',format_as_html('H2stor_chr_kWh*'))
 
 # Define CO2 flows
 d.attr('edge',color='purple')
-d.edge('CO2','CO2_mb','CO2_production_kg*')
-d.edge('CO2_mb','H2tL','CO2_consumption_kg*')
-d.edge('CO2stor','CO2_mb','CO2_dis_kg*')
-d.edge('CO2_mb','CO2stor','CO2_chr_kg*')
+d.edge('CO2','CO2_mb',format_as_html('CO2_production_kg*'))
+d.edge('CO2_mb','H2tL',format_as_html('CO2_consumption_kg*'))
+d.edge('CO2stor','CO2_mb',format_as_html('CO2_dis_kg*'))
+d.edge('CO2_mb','CO2stor',format_as_html('CO2_chr_kg*'))
 
 # Define heat flows
 d.attr('edge',color='red')
@@ -117,7 +111,6 @@ with d.subgraph() as a:
     a.node('heat')
     a.node('battery')
     a.node('electrolyzer')
-#     a.node('H2_mb')
     a.node('H2stor')
 with d.subgraph() as b:
     b.attr(rank='same')
@@ -127,6 +120,5 @@ with d.subgraph() as b:
     b.node('H2_mb')
 with d.subgraph() as c:
     c.node('wind')
-    c.node('wind')
-    c.node('legend')   
+    c.node('wind') 
 d.view()
