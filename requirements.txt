@@ -5,7 +5,7 @@ descartes==1.1.0
 fastparquet
 geopandas
 GitPython
-gurobi
+gurobipy
 matplotlib 
 netCDF4
 openpyxl
