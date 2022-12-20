@@ -155,7 +155,7 @@ def load_from_path(on_results_path,off_results_path=None,countries=None,file_idx
 
 def lcof_map(data,figsize=(15,15),fontsize=35,cmap=None,max_lcof=4,min_lcof=None,missing_kwds=None,legend_kwds={'extend':'max','orientation':'vertical'}):
     
-    metrics = {'LCOF_liter':'Levelized cost of fuel [EUR/liter]'}
+    metrics = {'LCOF_liter':'Levelized cost of fuel [EUR/litre]'}
     vmax_dict = {'LCOF_liter':max_lcof}
     vmin_dict = {'LCOF_liter':min_lcof}
 
