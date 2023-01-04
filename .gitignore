@@ -7,7 +7,7 @@ logs/
 scratch/
 results/
 trash/
-latex/
+paper/
 scripts/_config.json
 # data/Countries_WGS84/processed/
 data/MERRA/
