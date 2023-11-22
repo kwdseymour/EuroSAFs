@@ -8,6 +8,8 @@ scratch/
 results/
 trash/
 paper/
+paper_original/
+paper_resubmitted/
 scripts/_config.json
 # data/Countries_WGS84/processed/
 data/MERRA/
