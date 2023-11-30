@@ -1,0 +1,225 @@
+
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Austria_LCOF_map}
+      \caption{\textbf{PtL production costs in Austria for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Austria_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Belgium_LCOF_map}
+      \caption{\textbf{PtL production costs in Belgium for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Belgium_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Bulgaria_LCOF_map}
+      \caption{\textbf{PtL production costs in Bulgaria for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Bulgaria_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Croatia_LCOF_map}
+      \caption{\textbf{PtL production costs in Croatia for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Croatia_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Cyprus_LCOF_map}
+      \caption{\textbf{PtL production costs in Cyprus for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Cyprus_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Czech_Republic_LCOF_map}
+      \caption{\textbf{PtL production costs in Czech Republic for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Czech_Republic_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Denmark_LCOF_map}
+      \caption{\textbf{PtL production costs in Denmark for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Denmark_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Estonia_LCOF_map}
+      \caption{\textbf{PtL production costs in Estonia for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Estonia_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Finland_LCOF_map}
+      \caption{\textbf{PtL production costs in Finland for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Finland_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{France_LCOF_map}
+      \caption{\textbf{PtL production costs in France for 2020, 2030, 2040, and 2050.}}
+      \label{fig:France_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Germany_LCOF_map}
+      \caption{\textbf{PtL production costs in Germany for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Germany_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Greece_LCOF_map}
+      \caption{\textbf{PtL production costs in Greece for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Greece_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Hungary_LCOF_map}
+      \caption{\textbf{PtL production costs in Hungary for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Hungary_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Iceland_LCOF_map}
+      \caption{\textbf{PtL production costs in Iceland for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Iceland_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Ireland_LCOF_map}
+      \caption{\textbf{PtL production costs in Ireland for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Ireland_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Italy_LCOF_map}
+      \caption{\textbf{PtL production costs in Italy for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Italy_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Latvia_LCOF_map}
+      \caption{\textbf{PtL production costs in Latvia for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Latvia_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Liechtenstein_LCOF_map}
+      \caption{\textbf{PtL production costs in Liechtenstein for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Liechtenstein_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Lithuania_LCOF_map}
+      \caption{\textbf{PtL production costs in Lithuania for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Lithuania_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Luxembourg_LCOF_map}
+      \caption{\textbf{PtL production costs in Luxembourg for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Luxembourg_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Malta_LCOF_map}
+      \caption{\textbf{PtL production costs in Malta for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Malta_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Netherlands_LCOF_map}
+      \caption{\textbf{PtL production costs in Netherlands for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Netherlands_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Norway_LCOF_map}
+      \caption{\textbf{PtL production costs in Norway for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Norway_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Poland_LCOF_map}
+      \caption{\textbf{PtL production costs in Poland for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Poland_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Portugal_LCOF_map}
+      \caption{\textbf{PtL production costs in Portugal for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Portugal_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Romania_LCOF_map}
+      \caption{\textbf{PtL production costs in Romania for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Romania_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Slovakia_LCOF_map}
+      \caption{\textbf{PtL production costs in Slovakia for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Slovakia_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Slovenia_LCOF_map}
+      \caption{\textbf{PtL production costs in Slovenia for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Slovenia_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Spain_LCOF_map}
+      \caption{\textbf{PtL production costs in Spain for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Spain_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Sweden_LCOF_map}
+      \caption{\textbf{PtL production costs in Sweden for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Sweden_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{Switzerland_LCOF_map}
+      \caption{\textbf{PtL production costs in Switzerland for 2020, 2030, 2040, and 2050.}}
+      \label{fig:Switzerland_LCOF_map}
+    \end{figure}
+    
+    \begin{figure}[h]
+    \centering
+      \includegraphics[width=0.99\textwidth]{United_Kingdom_LCOF_map}
+      \caption{\textbf{PtL production costs in United Kingdom for 2020, 2030, 2040, and 2050.}}
+      \label{fig:United_Kingdom_LCOF_map}
+    \end{figure}
+    
