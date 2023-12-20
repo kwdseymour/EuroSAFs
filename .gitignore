@@ -10,6 +10,7 @@ trash/
 paper/
 paper_original/
 paper_resubmitted/
+paper_revised/
 scripts/_config.json
 # data/Countries_WGS84/processed/
 data/MERRA/
