@@ -89,7 +89,7 @@ bash_str = f'python {EuroSAFs_directory}/scripts/optimization/plant_optimization
         f'--EuroSAFs_directory {EuroSAFs_directory} '\
         f'--results_path {results_path} '\
         f'--country sensitivity '\
-        f'--year 2020 '\
+        f'--year {year} '\
         f'--bin_number 1 '\
         f'--bin_size {sample_size} '\
         f'--MIPGap {MIPGap} '\
