@@ -141,9 +141,11 @@ class Plant:
             elif year == 2050:
                 # This case is different from the one above. It is unclear why the stddev above is 1/3 of 20% of the 2020 value but that's what was used to generate values in the paper so that is left alone
                 # In this case, we really will look at using a stddev of 20% (but with 2050 values of course here)
-                specs['value'] = specs.apply(lambda x: x.value_2050 if any((np.isnan(x.sensitivity_min),np.isnan(x.sensitivity_max))) else round(np.random.normal(x.value_2050,x.value_2050*.2),5),axis=1)    
+                specs['value'] = specs['value_2050']
                 # If any specs are not specified for the given year, take the 2020 value
                 specs.loc[specs.value.isna(),'value'] = specs.loc[specs.value.isna(),'value_2020']
+                specs['value'] = specs.apply(lambda x: x.value if any((np.isnan(x.sensitivity_min),np.isnan(x.sensitivity_max))) else round(np.random.normal(x.value,x.value*.2),5),axis=1)    
+                
             else:
                 logger.error('Sensitivity analysis cannot be performed on years other than 2020 or 2050. Change the plant initialization year to 2020. The parameters selected now are from the 2020 sensitivity anyway.')
         self.specs = specs
