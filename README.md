@@ -1,6 +1,6 @@
 # Description
 
-This repository provides a tool to evaluate the minimum cost of fuel producation at sites throughout Europe using a botoom-up plant modeling approach in which technical and financial assumptions are combined with wind & solar resource data. The minimum cost is obtained via an optimization problem in which the cheapest plant configuration is determined by selecting component sizes and defining hourly operation (energy & mass flows). 
+This repository provides a tool to evaluate the minimum cost of fuel producation at sites throughout Europe using a bottom-up plant modeling approach in which technical and financial assumptions are combined with wind & solar resource data. The minimum cost is obtained via an optimization problem in which the cheapest plant configuration is determined by selecting component sizes and defining hourly operation (energy & mass flows). 
 
 # Setup
 The [environments.yml](https://github.com/kwdseymour/EuroSAFs/blob/master/environment.yml) file can be used to set up a working Python environment for the scripts in the repository. A Gurobi license must be obtained in order to run the optimization process.
